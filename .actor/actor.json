@@ -1,0 +1,55 @@
+{
+  "actorSpecification": 1,
+  "name": "vrbo-expedia-hotels-scraper",
+  "title": "VRBO, Expedia & Hotels.com Scraper",
+  "description": "Unified scraper for VRBO, Expedia, and Hotels.com property details. Auto-detects platform from URL and returns consistent output schema.",
+  "version": "1.0",
+  "meta": {
+    "templateId": "python-start"
+  },
+  "input": "./input_schema.json",
+  "dockerfile": "../Dockerfile",
+  "readme": "../README.md",
+  "categories": ["ECOMMERCE"],
+  "storages": {
+    "dataset": {
+      "actorSpecification": 1,
+      "views": {
+        "overview": {
+          "title": "Overview",
+          "transformation": {
+            "fields": [
+              "name",
+              "platform",
+              "rating",
+              "reviewCount",
+              "city",
+              "country"
+            ]
+          },
+          "display": {
+            "component": "table",
+            "properties": {
+              "name": {
+                "label": "Property Name",
+                "format": "text"
+              },
+              "platform": {
+                "label": "Platform",
+                "format": "text"
+              },
+              "rating": {
+                "label": "Rating",
+                "format": "number"
+              },
+              "reviewCount": {
+                "label": "Reviews",
+                "format": "number"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

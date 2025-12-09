@@ -1,0 +1,24 @@
+{
+  "title": "VRBO, Expedia & Hotels.com Scraper Input",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "urls": {
+      "title": "Property URLs",
+      "type": "array",
+      "description": "List of property URLs from VRBO, Expedia, or Hotels.com. Platform is auto-detected from URL.",
+      "editor": "stringList",
+      "prefill": [
+        "https://www.vrbo.com/4084796"
+      ]
+    },
+    "proxyConfiguration": {
+      "title": "Proxy Configuration",
+      "type": "object",
+      "description": "Proxy settings for requests",
+      "editor": "proxy",
+      "sectionCaption": "Proxy settings"
+    }
+  },
+  "required": ["urls"]
+}
