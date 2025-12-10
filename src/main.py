@@ -8,8 +8,12 @@ auto-detecting the platform from the URL.
 
 import asyncio
 import os
+import re
 import sys
 from typing import Optional
+from urllib.parse import urlparse
+
+import httpx
 
 from apify import Actor
 
@@ -20,6 +24,49 @@ from url_parser import extract_property_id, URLParseError, detect_platform
 from clients.vrbo_client import VrboPropertyClient, detect_site_from_url as vrbo_detect_site, extract_property_id_from_url as vrbo_extract_id
 from clients.expedia_client import ExpediaPropertyClient, detect_site_from_url as expedia_detect_site
 from formatters.vrbo_formatter import format_property, format_error
+
+
+# Short URL domains that need resolution
+SHORT_URL_DOMAINS = {"t.vrbo.io", "vrbo.io", "t.expedia.com", "t.hotels.com"}
+
+
+async def resolve_short_url(url: str, proxy_url: Optional[str] = None) -> str:
+    """
+    Resolve short URLs (t.vrbo.io, etc.) to their final destination.
+
+    These short URLs use JavaScript redirects, so we need to parse the HTML
+    to extract the actual URL.
+    """
+    parsed = urlparse(url)
+    if parsed.netloc not in SHORT_URL_DOMAINS:
+        return url
+
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as client:
+            response = await client.get(url)
+            html = response.text
+
+            # Look for VRBO/Expedia/Hotels.com URLs in the HTML
+            patterns = [
+                r'https://www\.vrbo\.com[^"<>\s]+',
+                r'https://www\.expedia\.com[^"<>\s]+',
+                r'https://www\.hotels\.com[^"<>\s]+',
+            ]
+
+            for pattern in patterns:
+                match = re.search(pattern, html)
+                if match:
+                    # Decode HTML entities
+                    resolved = match.group(0)
+                    resolved = resolved.replace("&#x3D;", "=")
+                    resolved = resolved.replace("&amp;", "&")
+                    resolved = resolved.replace("&#x26;", "&")
+                    return resolved
+
+    except Exception as e:
+        raise URLParseError(f"Failed to resolve short URL {url}: {e}")
+
+    raise URLParseError(f"Could not find destination URL in short URL response: {url}")
 
 
 async def scrape_vrbo_property(url: str, proxy_url: Optional[str] = None) -> dict:
@@ -155,10 +202,17 @@ async def main():
         Actor.log.info(f"Processing {len(urls)} URLs")
 
         for url in urls:
-            platform = detect_platform(url)
+            original_url = url
             property_id = "unknown"
 
             try:
+                # Resolve short URLs (t.vrbo.io, etc.)
+                url = await resolve_short_url(url, proxy_url)
+                if url != original_url:
+                    Actor.log.info(f"Resolved short URL: {original_url} -> {url}")
+
+                platform = detect_platform(url)
+
                 # Extract property_id for error reporting
                 if platform == "vrbo":
                     property_id, _ = vrbo_extract_id(url)
@@ -173,12 +227,12 @@ async def main():
                 Actor.log.info(f"Success: {name}")
 
             except URLParseError as e:
-                error_result = format_error(url, property_id, str(e), platform or "unknown")
+                error_result = format_error(original_url, property_id, str(e), "unknown")
                 await Actor.push_data(error_result)
                 Actor.log.error(f"URL parse error for {url}: {e}")
 
             except Exception as e:
-                error_result = format_error(url, property_id, str(e), platform or "unknown")
+                error_result = format_error(original_url, property_id, str(e), "unknown")
                 await Actor.push_data(error_result)
                 Actor.log.error(f"Failed to scrape {url}: {e}")
 
