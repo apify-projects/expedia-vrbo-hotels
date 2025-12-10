@@ -227,8 +227,14 @@ class ExpediaPropertyClient:
                 "https": proxy_url
             }
 
-    async def _post_json(self, payload: dict, headers: dict) -> dict:
-        """Execute a POST request in a worker thread with an overall timeout."""
+    async def _post_json(self, payload: dict, headers: dict, raise_on_graphql_errors: bool = True) -> dict:
+        """Execute a POST request in a worker thread with an overall timeout.
+
+        Args:
+            payload: GraphQL request payload
+            headers: HTTP headers
+            raise_on_graphql_errors: If True, raise exception when GraphQL returns errors
+        """
         response = await asyncio.wait_for(
             asyncio.to_thread(
                 self.session.post,
@@ -242,7 +248,16 @@ class ExpediaPropertyClient:
         if response.status_code >= 400:
             raise Exception(f"HTTP {response.status_code}: {response.text[:500]}")
 
-        return response.json()
+        data = response.json()
+
+        # Check for GraphQL errors
+        if raise_on_graphql_errors and "errors" in data:
+            errors = data["errors"]
+            if errors:
+                error_messages = [e.get("message", str(e)) for e in errors]
+                raise Exception(f"GraphQL errors: {'; '.join(error_messages)}")
+
+        return data
 
     def _get_headers(self, operation_name: str, operation_id: str) -> dict:
         """Get all required headers for the request."""

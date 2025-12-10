@@ -185,8 +185,14 @@ class VrboPropertyClient:
                 "https": proxy_url
             }
 
-    async def _post_json(self, payload: dict, headers: dict) -> dict:
-        """Execute a POST request in a worker thread with an overall timeout."""
+    async def _post_json(self, payload: dict, headers: dict, raise_on_graphql_errors: bool = True) -> dict:
+        """Execute a POST request in a worker thread with an overall timeout.
+
+        Args:
+            payload: GraphQL request payload
+            headers: HTTP headers
+            raise_on_graphql_errors: If True, raise exception when GraphQL returns errors
+        """
         response = await asyncio.wait_for(
             asyncio.to_thread(
                 self.session.post,
@@ -200,7 +206,16 @@ class VrboPropertyClient:
         if response.status_code >= 400:
             raise Exception(f"HTTP {response.status_code}: {response.text[:500]}")
 
-        return response.json()
+        data = response.json()
+
+        # Check for GraphQL errors
+        if raise_on_graphql_errors and "errors" in data:
+            errors = data["errors"]
+            if errors:
+                error_messages = [e.get("message", str(e)) for e in errors]
+                raise Exception(f"GraphQL errors: {'; '.join(error_messages)}")
+
+        return data
 
     def _get_headers(self, operation_name: str, operation_id: str) -> dict:
         """Get all required headers for the request."""
@@ -259,17 +274,19 @@ class VrboPropertyClient:
         }
 
     def _format_property_id(self, property_id: str, suffix: str = "") -> str:
-        """Format property ID for API request."""
+        """Format property ID for API request.
+
+        Note: The API expects IDs WITHOUT suffix (e.g., /holiday-accommodation/p1234567).
+        Suffixes like 'ha', 'vb', 'a' are URL-specific and cause API errors.
+        """
         # If already formatted, return as-is
         if property_id.startswith("/holiday-accommodation/"):
             return property_id
 
-        # Extract numeric part
+        # Extract numeric part only - suffixes cause API errors
         numeric_id = "".join(c for c in property_id if c.isdigit())
 
-        # Use provided suffix or default to 'vb'
-        final_suffix = suffix if suffix else "vb"
-        return f"/holiday-accommodation/p{numeric_id}{final_suffix}"
+        return f"/holiday-accommodation/p{numeric_id}"
 
     @async_retry_on_error(max_retries=3, delay=2.0, backoff=2.0)
     async def fetch_property_summary(
