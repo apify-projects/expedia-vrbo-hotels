@@ -21,7 +21,12 @@ from apify import Actor
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from url_parser import extract_property_id, URLParseError, detect_platform
-from clients.vrbo_client import VrboPropertyClient, detect_site_from_url as vrbo_detect_site, extract_property_id_from_url as vrbo_extract_id
+from clients.vrbo_client import (
+    VrboPropertyClient,
+    detect_site_from_url as vrbo_detect_site,
+    extract_property_id_from_url as vrbo_extract_id,
+    resolve_legacy_property_id,
+)
 from clients.expedia_client import ExpediaPropertyClient, detect_site_from_url as expedia_detect_site
 from formatters.vrbo_formatter import format_property, format_error
 
@@ -71,27 +76,35 @@ async def resolve_short_url(url: str, proxy_url: Optional[str] = None) -> str:
 
 async def scrape_vrbo_property(url: str, proxy_url: Optional[str] = None) -> dict:
     """Scrape a VRBO/HomeAway property."""
-    site = vrbo_detect_site(url) or "vrbo.com"
+    # Always use vrbo.com endpoint - regional endpoints (bookabach.co.nz, etc.)
+    # can return wrong property data for certain IDs
+    site = "vrbo.com"
     property_id, suffix = vrbo_extract_id(url)
     if not property_id:
         raise ValueError(f"Could not extract property ID from VRBO URL: {url}")
 
+    # Resolve legacy HomeAway IDs (with 'ha' suffix) to internal VRBO IDs
+    # These use a different ID system that requires HTML page lookup
+    resolved_id = await resolve_legacy_property_id(url, property_id, suffix, proxy_url)
+    if resolved_id != property_id:
+        Actor.log.info(f"Resolved legacy HomeAway ID: {property_id}{suffix} -> {resolved_id}")
+
     client = VrboPropertyClient(site=site, proxy_url=proxy_url)
 
-    # Fetch all required data in parallel
+    # Fetch all required data in parallel using resolved ID
     summary_data, details_data, gallery_data, offers_data, page_layout_data = await asyncio.gather(
-        client.fetch_property_summary(property_id, suffix),
-        client.fetch_property_details(property_id, suffix),
-        client.fetch_product_gallery(property_id, suffix),
-        client.fetch_property_offers(property_id, suffix),
-        client.fetch_page_layout(property_id, suffix)
+        client.fetch_property_summary(resolved_id),
+        client.fetch_property_details(resolved_id),
+        client.fetch_product_gallery(resolved_id),
+        client.fetch_property_offers(resolved_id),
+        client.fetch_page_layout(resolved_id)
     )
 
     return format_property(
         summary_data=summary_data,
         content_data=details_data,
         url=url,
-        property_id=property_id,
+        property_id=resolved_id,
         gallery_data=gallery_data,
         offers_data=offers_data,
         page_layout_data=page_layout_data
