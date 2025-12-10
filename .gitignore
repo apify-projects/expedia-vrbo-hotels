@@ -28,3 +28,11 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+# APK analysis artifacts
+vrbo_apk/
+vrbo_decompiled/
+*.apk
+
+# Playwright MCP
+.playwright-mcp/
