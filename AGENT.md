@@ -83,9 +83,13 @@ Key queries:
 
 ### 4. Legacy HomeAway ID Resolution
 
-**Critical Issue:** Legacy HomeAway URLs (with `ha` suffix like `11887139ha`) use a different ID system. The GraphQL API **rejects** these IDs - it only accepts internal numeric IDs.
+**Critical Issue:** Legacy HomeAway URLs use a different ID system. The GraphQL API **rejects** these IDs - it only accepts internal numeric IDs.
 
-**Solution:** HTML scraping to extract the internal ID from the page.
+This affects:
+- URLs with `ha` suffix: `/11887139ha`
+- Localized URLs without suffix: `/en-gb/p11887139` (still legacy IDs!)
+
+**Solution:** HTML scraping to extract the internal ID from the page. Resolution is attempted for all IDs except those with `vb` suffix (native VRBO IDs).
 
 **File:** `src/clients/vrbo_client.py` - `resolve_legacy_property_id()`
 
@@ -96,7 +100,7 @@ Resolution methods (in order of reliability):
 4. Data attributes: `data-property-id="117898910"`
 5. Canonical URL patterns
 
-Example: `11887139ha` → `117898910`
+Example: `11887139` or `11887139ha` → `117898910`
 
 ### 5. Short URL Resolution
 

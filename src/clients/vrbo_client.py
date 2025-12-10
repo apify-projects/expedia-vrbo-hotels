@@ -250,18 +250,19 @@ async def resolve_short_url(url: str, proxy_url: Optional[str] = None) -> str:
 async def resolve_legacy_property_id(url: str, property_id: str, suffix: str, proxy_url: Optional[str] = None) -> str:
     """Resolve legacy HomeAway property ID to internal VRBO property ID.
 
-    Legacy HomeAway URLs (with 'ha' suffix) use a different ID system that requires
-    server-side resolution. The GraphQL API only accepts internal numeric IDs.
+    Legacy HomeAway URLs use a different ID system that requires server-side resolution.
+    The GraphQL API only accepts internal numeric IDs.
 
-    Based on VRBO APK analysis: The mobile app passes raw URL paths to the API,
-    but the API rejects IDs with suffixes. Resolution must happen via HTML scraping.
+    This affects:
+    - URLs with 'ha' suffix: /11887139ha
+    - Localized URLs without suffix: /en-gb/p11887139 (still legacy IDs!)
 
     The internal ID is embedded in the page HTML within various patterns:
     - Image URLs: /lodging/118000000/117900000/117899000/117898910/image.jpg
     - Meta tags: <meta itemprop="identifier" content="117898910">
     - Script data: "propertyId":"117898910"
 
-    For example: URL ID '11887139ha' maps to internal ID '117898910'.
+    For example: URL ID '11887139' or '11887139ha' maps to internal ID '117898910'.
 
     Args:
         url: Original VRBO URL
@@ -272,8 +273,13 @@ async def resolve_legacy_property_id(url: str, property_id: str, suffix: str, pr
     Returns:
         Internal property ID (numeric string)
     """
-    # Only 'ha' suffix needs resolution - others use the URL ID directly
-    if suffix != "ha":
+    # Skip resolution for IDs that are clearly internal VRBO IDs (typically 7+ digits starting with 1-9)
+    # Legacy HomeAway IDs are typically 7-8 digits, internal IDs are 9 digits
+    # However, we can't reliably distinguish, so we always try resolution for 'ha' suffix
+    # and for shorter IDs that might be legacy
+
+    # 'vb' suffix IDs are native VRBO and don't need resolution
+    if suffix == "vb":
         return property_id
 
     try:
