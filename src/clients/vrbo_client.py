@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, Callable
 from functools import wraps
 
+import httpx
 import tls_client
 
 from auth import get_signed_headers
@@ -53,11 +54,10 @@ def async_retry_on_error(max_retries: int = 3, delay: float = 2.0, backoff: floa
 
 
 # Regional site configurations
-# NOTE: vrbo.com uses bookabach.co.nz GraphQL endpoint because vrbo.com endpoint
-# fails to resolve property IDs with "Could not resolve EG url" errors.
-# The bookabach.co.nz endpoint works for all VRBO properties regardless of region.
+# NOTE: vrbo.com must use vrbo.com endpoint with numeric IDs (not path format).
+# The bookabach.co.nz endpoint returns incorrect property data for some IDs.
 SITE_CONFIGS = {
-    "vrbo.com": {"base_url": "https://www.bookabach.co.nz", "site_id": 9006043, "tpid": 9006, "eapid": 43, "locale": "en_US", "currency": "USD"},
+    "vrbo.com": {"base_url": "https://www.vrbo.com", "site_id": 9001001, "tpid": 9001, "eapid": 1, "locale": "en_US", "currency": "USD"},
     "bookabach.co.nz": {"base_url": "https://www.bookabach.co.nz", "site_id": 9006043, "tpid": 9006, "eapid": 43, "locale": "en_NZ", "currency": "NZD"},
     "stayz.com.au": {"base_url": "https://www.stayz.com.au", "site_id": 9006044, "tpid": 9006, "eapid": 44, "locale": "en_AU", "currency": "AUD"},
     "abritel.fr": {"base_url": "https://www.abritel.fr", "site_id": 9001020, "tpid": 9001, "eapid": 20, "locale": "en_US", "currency": "EUR"},
@@ -133,6 +133,262 @@ def get_default_dates() -> tuple[str, str]:
     tomorrow = datetime.now(timezone.utc) + timedelta(days=1)
     checkout = tomorrow + timedelta(days=2)
     return tomorrow.strftime("%Y-%m-%d"), checkout.strftime("%Y-%m-%d")
+
+
+# Short URL domains that redirect to VRBO property pages
+SHORT_URL_DOMAINS = {"t.vrbo.io", "vrbo.io", "homeaway.com/vl"}
+
+
+def is_short_url(url: str) -> bool:
+    """Check if URL is a short/redirect URL that needs resolution."""
+    if not url.startswith("http"):
+        return False
+    parsed = urlparse(url)
+    host = parsed.netloc.lower()
+    return any(domain in host for domain in SHORT_URL_DOMAINS)
+
+
+async def resolve_short_url(url: str, proxy_url: Optional[str] = None) -> str:
+    """Resolve short URLs (like t.vrbo.io) to full VRBO property URLs.
+
+    Short URLs from sharing or marketing redirect through multiple services.
+    We follow redirects and extract the final VRBO URL or property ID.
+
+    Args:
+        url: Short URL to resolve (e.g., https://t.vrbo.io/bN81iIoI3Wb)
+        proxy_url: Optional proxy URL
+
+    Returns:
+        Resolved full URL or original URL if resolution fails
+    """
+    if not is_short_url(url):
+        return url
+
+    try:
+        session = tls_client.Session(
+            client_identifier="okhttp4_android_13",
+            random_tls_extension_order=True
+        )
+
+        if proxy_url:
+            session.proxies = {"http": proxy_url, "https": proxy_url}
+
+        # First request to get initial redirect
+        response = await asyncio.wait_for(
+            asyncio.to_thread(
+                session.get,
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36",
+                    "Accept": "text/html,application/xhtml+xml",
+                },
+                allow_redirects=False  # Don't follow redirects automatically
+            ),
+            timeout=15.0
+        )
+
+        # Check for redirect in Location header (tls_client headers are case-sensitive)
+        if response.status_code in (301, 302, 303, 307, 308):
+            location = response.headers.get("Location") or response.headers.get("location", "")
+            if location:
+                # If redirects to another short URL service, follow it
+                if "app.link" in location or "branch.io" in location:
+                    # Branch.io links - may redirect directly or serve HTML with fallback URL
+                    branch_response = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            session.get,
+                            location,
+                            headers={
+                                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+                                "Accept": "text/html",
+                            },
+                            allow_redirects=False
+                        ),
+                        timeout=15.0
+                    )
+
+                    # Check if Branch.io returns a redirect with VRBO URL in Location header
+                    if branch_response.status_code in (301, 302, 303, 307, 308):
+                        branch_location = branch_response.headers.get("Location") or branch_response.headers.get("location", "")
+                        if branch_location and ("vrbo.com" in branch_location or any(site in branch_location for site in SITE_CONFIGS)):
+                            return branch_location
+
+                    # Fall back to parsing HTML for browser_fallback_url
+                    html = branch_response.text
+
+                    # Extract fallback URL from Branch.io page
+                    # Pattern: browser_fallback_url=https%3A%2F%2Fwww.vrbo.com%2F...
+                    match = re.search(r'browser_fallback_url=([^&"\'>\s]+)', html)
+                    if match:
+                        from urllib.parse import unquote
+                        fallback_url = unquote(match.group(1))
+                        if "vrbo.com" in fallback_url or any(site in fallback_url for site in SITE_CONFIGS):
+                            return fallback_url
+
+                    # Alternative: Look for vrbo.com URL in the HTML
+                    match = re.search(r'https?://(?:www\.)?vrbo\.com/[^\s"\'<>]+', html)
+                    if match:
+                        return match.group(0).rstrip('\\')
+
+                # Direct redirect to VRBO
+                if "vrbo.com" in location or any(site in location for site in SITE_CONFIGS):
+                    return location
+
+        # If we got HTML response, look for property URL in content
+        if response.status_code == 200:
+            html = response.text
+            match = re.search(r'https?://(?:www\.)?vrbo\.com/[^\s"\'<>]+', html)
+            if match:
+                return match.group(0).rstrip('\\')
+
+        return url
+
+    except Exception:
+        return url
+
+
+async def resolve_legacy_property_id(url: str, property_id: str, suffix: str, proxy_url: Optional[str] = None) -> str:
+    """Resolve legacy HomeAway property ID to internal VRBO property ID.
+
+    Legacy HomeAway URLs (with 'ha' suffix) use a different ID system that requires
+    server-side resolution. The GraphQL API only accepts internal numeric IDs.
+
+    Based on VRBO APK analysis: The mobile app passes raw URL paths to the API,
+    but the API rejects IDs with suffixes. Resolution must happen via HTML scraping.
+
+    The internal ID is embedded in the page HTML within various patterns:
+    - Image URLs: /lodging/118000000/117900000/117899000/117898910/image.jpg
+    - Meta tags: <meta itemprop="identifier" content="117898910">
+    - Script data: "propertyId":"117898910"
+
+    For example: URL ID '11887139ha' maps to internal ID '117898910'.
+
+    Args:
+        url: Original VRBO URL
+        property_id: Extracted numeric property ID from URL
+        suffix: ID suffix ('ha', 'vb', 'a', or '')
+        proxy_url: Optional proxy URL
+
+    Returns:
+        Internal property ID (numeric string)
+    """
+    # Only 'ha' suffix needs resolution - others use the URL ID directly
+    if suffix != "ha":
+        return property_id
+
+    try:
+        # Construct the URL to fetch
+        fetch_url = url if url.startswith("http") else f"https://www.vrbo.com/{property_id}{suffix}"
+
+        # Use tls_client with mobile Android fingerprint for better anti-bot evasion
+        session = tls_client.Session(
+            client_identifier="okhttp4_android_13",
+            random_tls_extension_order=True
+        )
+
+        if proxy_url:
+            session.proxies = {"http": proxy_url, "https": proxy_url}
+
+        # Use mobile app user-agent (same as GraphQL requests) for consistency
+        response = await asyncio.wait_for(
+            asyncio.to_thread(
+                session.get,
+                fetch_url,
+                headers={
+                    "User-Agent": "HomeAway/2025.47.0 Dalvik/2.1.0 (Linux; U; Android 13; Generic Android-x86_64 Build/TQ3A.230901.001.C1)",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Accept-Encoding": "gzip, deflate",
+                },
+                allow_redirects=True
+            ),
+            timeout=20.0
+        )
+        html = response.text
+
+        # Method 1: Extract from og:image URL pattern (most reliable)
+        # Pattern: /lodging/118000000/117900000/117899000/117898910/image.jpg
+        match = re.search(r'/lodging/\d+/\d+/\d+/(\d+)/', html)
+        if match:
+            internal_id = match.group(1)
+            if internal_id != property_id:  # Ensure we found a different ID
+                return internal_id
+
+        # Method 2: Extract from <meta itemprop="identifier" content="...">
+        # Attribute order may vary, so use flexible pattern
+        match = re.search(r'<meta[^>]*itemprop=["\']identifier["\'][^>]*content=["\'](\d+)["\']', html)
+        if match:
+            return match.group(1)
+        match = re.search(r'<meta[^>]*content=["\'](\d+)["\'][^>]*itemprop=["\']identifier["\']', html)
+        if match:
+            return match.group(1)
+
+        # Method 3: Extract from JSON-LD or script data
+        # Pattern: "propertyId":"117898910" or "id":"117898910"
+        match = re.search(r'"propertyId"\s*:\s*"(\d+)"', html)
+        if match:
+            internal_id = match.group(1)
+            if internal_id != property_id:
+                return internal_id
+
+        # Method 4: Extract from data attributes
+        # Pattern: data-property-id="117898910"
+        match = re.search(r'data-property-id=["\'](\d+)["\']', html)
+        if match:
+            internal_id = match.group(1)
+            if internal_id != property_id:
+                return internal_id
+
+        # Method 5: Extract from canonical URL or og:url if it contains different ID
+        match = re.search(r'(?:canonical|og:url)[^>]*href=["\'][^"\']*?/(\d+)(?:["\']|[?/])', html)
+        if match:
+            internal_id = match.group(1)
+            if internal_id != property_id and len(internal_id) >= 6:
+                return internal_id
+
+        # If no internal ID found, return original (API will fail if invalid)
+        return property_id
+
+    except Exception as e:
+        # If resolution fails, try with the original ID
+        return property_id
+
+
+def validate_property_response(response_data: dict, expected_id: str) -> tuple[bool, str]:
+    """Validate that API response is for the correct property.
+
+    The GraphQL response includes the property ID at data.propertyInfo.summary.id.
+    This function checks that the returned ID matches what we requested,
+    detecting cases where an endpoint returns data for a different property.
+
+    Args:
+        response_data: Raw GraphQL response dictionary
+        expected_id: The property ID we requested (may include suffix)
+
+    Returns:
+        Tuple of (is_valid, reason) where:
+        - is_valid: True if response matches expected property
+        - reason: Explanation (especially useful when invalid)
+    """
+    # Extract response property info
+    property_info = response_data.get("data", {}).get("propertyInfo", {})
+    summary = property_info.get("summary", {})
+    response_id = summary.get("id")
+    response_name = summary.get("name")
+
+    # Check for empty response
+    if not response_id and not response_name:
+        return False, "Empty response - no property ID or name returned"
+
+    # Normalize IDs for comparison (strip any suffix)
+    expected_num = re.sub(r'[a-zA-Z]+$', '', str(expected_id))
+    response_num = re.sub(r'[a-zA-Z]+$', '', str(response_id)) if response_id else ""
+
+    # Check if IDs match
+    if response_num and expected_num != response_num:
+        return False, f"Wrong property: requested {expected_id}, got {response_id} ('{response_name}')"
+
+    return True, "Valid"
 
 
 class VrboPropertyClient:
@@ -276,17 +532,19 @@ class VrboPropertyClient:
     def _format_property_id(self, property_id: str, suffix: str = "") -> str:
         """Format property ID for API request.
 
-        Note: The API expects IDs WITHOUT suffix (e.g., /holiday-accommodation/p1234567).
-        Suffixes like 'ha', 'vb', 'a' are URL-specific and cause API errors.
+        Note: The GraphQL API only accepts numeric IDs. Legacy HomeAway IDs
+        (with 'ha' suffix) must be resolved to internal IDs BEFORE calling
+        this method using resolve_legacy_property_id().
+
+        Args:
+            property_id: The property ID (should already be resolved for 'ha' URLs)
+            suffix: Ignored - kept for API compatibility
+
+        Returns:
+            Numeric property ID string
         """
-        # If already formatted, return as-is
-        if property_id.startswith("/holiday-accommodation/"):
-            return property_id
-
-        # Extract numeric part only - suffixes cause API errors
-        numeric_id = "".join(c for c in property_id if c.isdigit())
-
-        return f"/holiday-accommodation/p{numeric_id}"
+        # Extract numeric part only - API doesn't accept suffixes
+        return "".join(c for c in property_id if c.isdigit())
 
     @async_retry_on_error(max_retries=3, delay=2.0, backoff=2.0)
     async def fetch_property_summary(
@@ -329,10 +587,17 @@ class VrboPropertyClient:
             "query": PROPERTY_SUMMARY_QUERY
         }
 
-        return await self._post_json(
+        data = await self._post_json(
             payload,
             self._get_headers("PropertySummary", "PropertySummary")
         )
+
+        # Validate that we got the correct property (not wrong data from mismatched endpoint)
+        is_valid, reason = validate_property_response(data, formatted_property_id)
+        if not is_valid:
+            raise ValueError(f"Property validation failed for {formatted_property_id}: {reason}")
+
+        return data
 
     @async_retry_on_error(max_retries=3, delay=2.0, backoff=2.0)
     async def fetch_property_details(
@@ -394,15 +659,19 @@ class VrboPropertyClient:
         property_id: str,
         suffix: str = ""
     ) -> dict:
-        """Fetch property gallery images using ProductGallery query."""
-        formatted_property_id = self._format_property_id(property_id, suffix)
+        """Fetch property gallery images using ProductGallery query.
+
+        Note: ProductGallery API requires raw numeric ID, not the formatted path.
+        """
+        # Extract just the numeric part - ProductGallery doesn't accept path format
+        numeric_id = "".join(c for c in property_id if c.isdigit())
 
         payload = {
             "operationName": "ProductGallery",
             "variables": {
                 "context": self._build_context(),
                 "productIdentifier": {
-                    "id": formatted_property_id,
+                    "id": numeric_id,
                     "type": "PROPERTY_ID"
                 }
             },
@@ -477,12 +746,16 @@ class VrboPropertyClient:
         adults: int = 2,
         children: list = None
     ) -> dict:
-        """Fetch review summary using ProductReviewSummaryQuery persisted query."""
+        """Fetch review summary using ProductReviewSummaryQuery persisted query.
+
+        Note: This API requires raw numeric ID, not the formatted path.
+        """
         children = children or []
-        formatted_property_id = self._format_property_id(property_id, suffix)
+        # Extract just the numeric part - this API doesn't accept path format
+        numeric_id = "".join(c for c in property_id if c.isdigit())
 
         product_identifier = {
-            "id": formatted_property_id,
+            "id": numeric_id,
             "productLine": "LODGING",
             "travelSearchCriteria": {
                 "property": {
