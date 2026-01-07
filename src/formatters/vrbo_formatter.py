@@ -712,6 +712,46 @@ def extract_pricing(offers_data: dict) -> dict:
     return result
 
 
+def extract_units_from_offers(offers_data: dict) -> list[dict]:
+    """
+    Extract unit information from PropertyOffers categorizedListings.
+
+    Multi-unit properties (apartments, condos with multiple rooms) return
+    LodgingCategorizedUnit objects with unitId fields. This extracts those
+    unit IDs for further querying or display.
+
+    Args:
+        offers_data: Raw PropertyOffers API response
+
+    Returns:
+        List of unit dicts with id field (may be empty for single-unit properties)
+    """
+    units = []
+
+    categorized_listings = safe_get(
+        offers_data, "data", "propertyOffers", "categorizedListings", default=[]
+    )
+
+    for listing in categorized_listings or []:
+        if not isinstance(listing, dict):
+            continue
+
+        # Check if this is a LodgingCategorizedUnit (multi-unit property)
+        typename = listing.get("__typename")
+        if typename == "LodgingCategorizedUnit":
+            unit_id = listing.get("unitId")
+            if unit_id:
+                units.append({
+                    "id": unit_id,
+                    "name": None,  # Can be populated from PropertySpaces query
+                    "images": [],
+                    "features": [],
+                    "price": None
+                })
+
+    return units
+
+
 def format_property(
     summary_data: dict,
     content_data: dict,
@@ -792,10 +832,14 @@ def format_property(
     # Get thumbnail (first image URL)
     thumbnail = images[0].get("url") if images else None
 
-    # Build units array (VRBO properties typically have one unit)
-    units = []
-    if pricing:
+    # Extract units from categorizedListings (multi-unit properties)
+    units = extract_units_from_offers(offers_data) if offers_data else []
+
+    # If no units found from categorizedListings, create single-unit fallback
+    # This handles single-unit properties that don't have categorizedListings
+    if not units and pricing:
         units.append({
+            "id": None,
             "name": None,
             "images": [],
             "features": features,

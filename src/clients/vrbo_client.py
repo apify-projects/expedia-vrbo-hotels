@@ -22,6 +22,8 @@ from queries.vrbo_queries import (
     PROPERTY_SUMMARY_QUERY,
     PRODUCT_GALLERY_QUERY,
     PROPERTY_OFFERS_QUERY,
+    PROPERTY_OFFERS_WITH_UNITS_QUERY,
+    PROPERTY_SPACES_QUERY,
     PRODUCT_REVIEW_SUMMARY_HASH,
     TEMPLATE_PAGE_LAYOUT_QUERY,
 )
@@ -736,12 +738,49 @@ class VrboPropertyClient:
                 "propertyId": formatted_property_id,
                 "searchCriteria": search_criteria
             },
-            "query": PROPERTY_OFFERS_QUERY
+            "query": PROPERTY_OFFERS_WITH_UNITS_QUERY  # Use enhanced query with categorizedListings
         }
 
         return await self._post_json(
             payload,
             self._get_headers("PropertyOffers", "PropertyOffers")
+        )
+
+    @async_retry_on_error(max_retries=3, delay=2.0, backoff=2.0)
+    async def fetch_property_spaces(
+        self,
+        property_id: str,
+        suffix: str = "",
+        content_type: str = "SUMMARY"
+    ) -> dict:
+        """Fetch property spaces/units details using PropertySpaces query.
+
+        This query returns room/unit information for multi-unit properties like hotels
+        or vacation rentals with multiple accommodations.
+
+        Args:
+            property_id: The property ID
+            suffix: ID suffix (ignored)
+            content_type: PropertyContentType enum (SUMMARY, DETAILED, CARD)
+
+        Returns:
+            GraphQL response with propertySpaces data
+        """
+        formatted_property_id = self._format_property_id(property_id, suffix)
+
+        payload = {
+            "operationName": "PropertySpaces",
+            "variables": {
+                "context": self._build_context(),
+                "propertyId": formatted_property_id,
+                "propertyContentType": content_type
+            },
+            "query": PROPERTY_SPACES_QUERY
+        }
+
+        return await self._post_json(
+            payload,
+            self._get_headers("PropertySpaces", "PropertySpaces")
         )
 
     @async_retry_on_error(max_retries=3, delay=2.0, backoff=2.0)
