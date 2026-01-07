@@ -27,4 +27,8 @@ PROPERTY_SPACES_QUERY = """query PropertySpaces($context: ContextInput!, $proper
 
 # Enhanced PropertyOffers query with categorizedListings for multi-unit properties
 # Uses inline fragment to handle LodgingCategorizedUnit type
-PROPERTY_OFFERS_WITH_UNITS_QUERY = """query PropertyOffers($context: ContextInput!, $propertyId: String!, $searchCriteria: PropertySearchCriteriaInput, $shoppingContext: ShoppingContextInput) { propertyOffers(context: $context, propertyId: $propertyId, searchCriteria: $searchCriteria, shoppingContext: $shoppingContext) { __typename errorMessage { title { text } } categorizedListings { __typename ... on LodgingCategorizedUnit { unitId } } tripSummary { header { text subText } price { lead { amount currencyInfo { code symbol } formatted } total { amount } roomNightMessage displayMessages { lineItems { __typename ... on DisplayPrice { price { formatted accessibilityLabel } } } } } summary { value } } } }"""
+# Discovered schema fields for LodgingCategorizedUnit:
+#   - unitId: The unit identifier
+#   - header { text subText }: Unit name and description
+#   - features { text }: Unit features like "248 sq ft • Sleeps 2 • 1 Queen Bed"
+PROPERTY_OFFERS_WITH_UNITS_QUERY = """query PropertyOffers($context: ContextInput!, $propertyId: String!, $searchCriteria: PropertySearchCriteriaInput, $shoppingContext: ShoppingContextInput) { propertyOffers(context: $context, propertyId: $propertyId, searchCriteria: $searchCriteria, shoppingContext: $shoppingContext) { __typename errorMessage { title { text } } categorizedListings { __typename ... on LodgingCategorizedUnit { unitId header { text subText } features { text } } } tripSummary { header { text subText } price { lead { amount currencyInfo { code symbol } formatted } total { amount } roomNightMessage displayMessages { lineItems { __typename ... on DisplayPrice { price { formatted accessibilityLabel } } } } } summary { value } } } }"""

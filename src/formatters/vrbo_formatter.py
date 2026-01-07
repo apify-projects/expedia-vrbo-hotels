@@ -717,14 +717,17 @@ def extract_units_from_offers(offers_data: dict) -> list[dict]:
     Extract unit information from PropertyOffers categorizedListings.
 
     Multi-unit properties (apartments, condos with multiple rooms) return
-    LodgingCategorizedUnit objects with unitId fields. This extracts those
-    unit IDs for further querying or display.
+    LodgingCategorizedUnit objects with detailed unit information:
+    - unitId: Unit identifier
+    - header.text: Unit name (e.g., "Studio", "Deluxe Studio")
+    - header.subText: Unit description (if available)
+    - features[].text: Unit features (e.g., "248 sq ft • Sleeps 2 • 1 Queen Bed")
 
     Args:
         offers_data: Raw PropertyOffers API response
 
     Returns:
-        List of unit dicts with id field (may be empty for single-unit properties)
+        List of unit dicts with id, name, features (may be empty for single-unit properties)
     """
     units = []
 
@@ -741,12 +744,25 @@ def extract_units_from_offers(offers_data: dict) -> list[dict]:
         if typename == "LodgingCategorizedUnit":
             unit_id = listing.get("unitId")
             if unit_id:
+                # Extract unit name from header
+                header = listing.get("header", {}) or {}
+                unit_name = header.get("text")
+                unit_subtext = header.get("subText")
+
+                # Extract features array
+                features_data = listing.get("features", []) or []
+                features = []
+                for feature in features_data:
+                    if isinstance(feature, dict) and feature.get("text"):
+                        features.append(feature["text"])
+
                 units.append({
                     "id": unit_id,
-                    "name": None,  # Can be populated from PropertySpaces query
-                    "images": [],
-                    "features": [],
-                    "price": None
+                    "name": unit_name,
+                    "description": unit_subtext,
+                    "features": features,
+                    "images": [],  # Not available via PropertyOffers
+                    "price": None  # Price available at property level, not unit level
                 })
 
     return units
