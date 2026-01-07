@@ -9,6 +9,7 @@ auto-detecting the platform from the URL.
 import asyncio
 import os
 import re
+import socket
 import sys
 from typing import Optional
 from urllib.parse import urlparse
@@ -34,15 +35,103 @@ from formatters.vrbo_formatter import format_property, format_error
 # Short URL domains that need resolution
 SHORT_URL_DOMAINS = {"t.vrbo.io", "vrbo.io", "t.expedia.com", "t.hotels.com"}
 
+# Branch.io deep link domains (require DNS bypass)
+DEEP_LINK_DOMAINS = {"expe.app.link", "hotels.app.link"}
+
+
+async def resolve_via_google_dns(domain: str) -> str:
+    """Resolve domain to IP via Google DNS to bypass local DNS blocking.
+
+    Branch.io app.link domains may be blocked at the DNS level in some
+    environments. Using Google's public DNS resolver bypasses this.
+    """
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        resp = await client.get(
+            "https://dns.google/resolve",
+            params={"name": domain, "type": "A"}
+        )
+        data = resp.json()
+        if "Answer" in data:
+            return data["Answer"][0]["data"]
+        raise Exception(f"Could not resolve {domain} via Google DNS")
+
+
+def expand_deep_link_sync(short_url: str, ip: str, domain: str) -> str:
+    """Synchronous helper to expand deep link with socket patching.
+
+    Uses requests library which respects socket.getaddrinfo patching.
+    httpx/asyncio use different DNS resolution that bypasses socket patching.
+    """
+    import requests as sync_requests
+    from urllib.parse import unquote
+
+    _original_getaddrinfo = socket.getaddrinfo
+
+    def _patched_getaddrinfo(host, port, family=0, type_=0, proto=0, flags=0):
+        if host == domain:
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (ip, port if port else 443))]
+        return _original_getaddrinfo(host, port, family, type_, proto, flags)
+
+    socket.getaddrinfo = _patched_getaddrinfo
+    try:
+        resp = sync_requests.get(
+            short_url,
+            allow_redirects=False,  # Don't follow redirects - check Location header first
+            timeout=15,
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        )
+
+        # Check for HTTP redirect first (like VRBO does)
+        if resp.status_code in (301, 302, 303, 307, 308):
+            location = resp.headers.get("Location") or resp.headers.get("location", "")
+            if location and ("expedia" in location or "hotels.com" in location):
+                return location
+
+        # Fall back to parsing HTML for browser_fallback_url (same as VRBO)
+        html = resp.text
+        match = re.search(r'browser_fallback_url=([^&"\'>\s]+)', html)
+        if match:
+            fallback_url = unquote(match.group(1))
+            if "expedia" in fallback_url or "hotels.com" in fallback_url:
+                return fallback_url
+
+        # If no match found, return original URL
+        return short_url
+    finally:
+        socket.getaddrinfo = _original_getaddrinfo
+
+
+async def expand_deep_link(short_url: str) -> str:
+    """Expand Branch.io deep links (expe.app.link, hotels.app.link) using Google DNS.
+
+    These deep links redirect to Expedia/Hotels.com property URLs. We use Google DNS
+    to resolve the IP address and patch socket.getaddrinfo to bypass potential
+    local DNS blocking.
+    """
+    parsed = urlparse(short_url)
+    domain = parsed.netloc
+
+    # Resolve IP via Google DNS
+    ip = await resolve_via_google_dns(domain)
+
+    # Run synchronous request in thread pool (requests respects socket patching, httpx doesn't)
+    return await asyncio.to_thread(expand_deep_link_sync, short_url, ip, domain)
+
 
 async def resolve_short_url(url: str, proxy_url: Optional[str] = None) -> str:
     """
-    Resolve short URLs (t.vrbo.io, etc.) to their final destination.
+    Resolve short URLs (t.vrbo.io, etc.) and deep links to their final destination.
 
-    These short URLs use JavaScript redirects, so we need to parse the HTML
-    to extract the actual URL.
+    Short URLs use JavaScript redirects, so we need to parse the HTML.
+    Deep links (expe.app.link, hotels.app.link) require DNS bypass via Google DNS.
     """
     parsed = urlparse(url)
+
+    # Handle Branch.io deep links (require DNS bypass)
+    if parsed.netloc in DEEP_LINK_DOMAINS:
+        return await expand_deep_link(url)
+
+    # Handle standard short URLs
     if parsed.netloc not in SHORT_URL_DOMAINS:
         return url
 
