@@ -719,6 +719,9 @@ def extract_unit_price(listing: dict) -> Optional[dict]:
     Schema path discovered via GraphQL probing:
     primarySelections[].propertyUnit.ratePlans[].priceDetails.price.{lead,total}
 
+    Note: priceDetails can be either a dict (VRBO) or a list (Expedia).
+    When it's a list, we iterate through it to find the price object.
+
     Args:
         listing: A LodgingCategorizedUnit object from categorizedListings
 
@@ -738,22 +741,46 @@ def extract_unit_price(listing: dict) -> Optional[dict]:
             if not isinstance(rate_plan, dict):
                 continue
 
-            price_details = rate_plan.get("priceDetails", {}) or {}
-            price = price_details.get("price", {}) or {}
+            price_details_raw = rate_plan.get("priceDetails")
 
-            lead = price.get("lead", {}) or {}
-            total = price.get("total", {}) or {}
+            # Handle priceDetails being either a dict (VRBO) or list (Expedia)
+            if isinstance(price_details_raw, list):
+                # Expedia format: priceDetails is a list of price detail objects
+                for pd in price_details_raw:
+                    if not isinstance(pd, dict):
+                        continue
+                    price = pd.get("price", {}) or {}
+                    result = _extract_price_from_object(price)
+                    if result:
+                        return result
+            elif isinstance(price_details_raw, dict):
+                # VRBO format: priceDetails is a single dict
+                price = price_details_raw.get("price", {}) or {}
+                result = _extract_price_from_object(price)
+                if result:
+                    return result
 
-            # Check if we have actual price data
-            if lead.get("amount") is not None or lead.get("formatted"):
-                currency_info = lead.get("currencyInfo", {}) or {}
-                return {
-                    "amount": lead.get("amount"),
-                    "formatted": lead.get("formatted"),
-                    "total": total.get("amount"),
-                    "totalFormatted": total.get("formatted"),
-                    "currency": currency_info.get("code")
-                }
+    return None
+
+
+def _extract_price_from_object(price: dict) -> Optional[dict]:
+    """Helper to extract price data from a price object."""
+    if not isinstance(price, dict):
+        return None
+
+    lead = price.get("lead", {}) or {}
+    total = price.get("total", {}) or {}
+
+    # Check if we have actual price data
+    if lead.get("amount") is not None or lead.get("formatted"):
+        currency_info = lead.get("currencyInfo", {}) or {}
+        return {
+            "amount": lead.get("amount"),
+            "formatted": lead.get("formatted"),
+            "total": total.get("amount"),
+            "totalFormatted": total.get("formatted"),
+            "currency": currency_info.get("code")
+        }
 
     return None
 

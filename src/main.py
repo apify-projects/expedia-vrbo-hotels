@@ -303,40 +303,55 @@ async def main():
 
         Actor.log.info(f"Processing {len(urls)} URLs")
 
+        max_retries = actor_input.get("maxRetries", 3)
+
         for url in urls:
             original_url = url
             property_id = "unknown"
+            last_error = None
 
-            try:
-                # Resolve short URLs (t.vrbo.io, etc.)
-                url = await resolve_short_url(url, proxy_url)
-                if url != original_url:
-                    Actor.log.info(f"Resolved short URL: {original_url} -> {url}")
+            for attempt in range(max_retries):
+                try:
+                    # Resolve short URLs (t.vrbo.io, etc.) - only on first attempt
+                    if attempt == 0:
+                        url = await resolve_short_url(url, proxy_url)
+                        if url != original_url:
+                            Actor.log.info(f"Resolved short URL: {original_url} -> {url}")
 
-                platform = detect_platform(url)
+                        platform = detect_platform(url)
 
-                # Extract property_id for error reporting
-                if platform == "vrbo":
-                    property_id, _ = vrbo_extract_id(url)
-                else:
-                    property_id, _ = extract_property_id(url)
-                property_id = property_id or "unknown"
+                        # Extract property_id for error reporting
+                        if platform == "vrbo":
+                            property_id, _ = vrbo_extract_id(url)
+                        else:
+                            property_id, _ = extract_property_id(url)
+                        property_id = property_id or "unknown"
 
-                Actor.log.info(f"Scraping {platform}: {url}")
-                result = await scrape_property(url, proxy_url)
-                await Actor.push_data(result)
-                name = result.get('name') or f"Property {property_id}"
-                Actor.log.info(f"Success: {name}")
+                    Actor.log.info(f"Scraping {platform}: {url}" + (f" (attempt {attempt + 1}/{max_retries})" if attempt > 0 else ""))
+                    result = await scrape_property(url, proxy_url)
+                    await Actor.push_data(result)
+                    name = result.get('name') or f"Property {property_id}"
+                    Actor.log.info(f"Success: {name}")
+                    break  # Success, exit retry loop
 
-            except URLParseError as e:
-                error_result = format_error(original_url, property_id, str(e), "unknown")
-                await Actor.push_data(error_result)
-                Actor.log.error(f"URL parse error for {url}: {e}")
+                except URLParseError as e:
+                    # URL parse errors are not retryable
+                    error_result = format_error(original_url, property_id, str(e), "unknown")
+                    await Actor.push_data(error_result)
+                    Actor.log.error(f"URL parse error for {url}: {e}")
+                    break
 
-            except Exception as e:
-                error_result = format_error(original_url, property_id, str(e), "unknown")
-                await Actor.push_data(error_result)
-                Actor.log.error(f"Failed to scrape {url}: {e}")
+                except Exception as e:
+                    last_error = e
+                    if attempt < max_retries - 1:
+                        delay = (2 ** attempt) + 1  # Exponential backoff: 2s, 3s, 5s
+                        Actor.log.warning(f"Attempt {attempt + 1}/{max_retries} failed for {url}: {e}. Retrying in {delay}s...")
+                        await asyncio.sleep(delay)
+                    else:
+                        # Final attempt failed
+                        error_result = format_error(original_url, property_id, str(e), "unknown")
+                        await Actor.push_data(error_result)
+                        Actor.log.error(f"Failed to scrape {url} after {max_retries} attempts: {e}")
 
 
 if __name__ == "__main__":
