@@ -712,7 +712,56 @@ def extract_pricing(offers_data: dict) -> dict:
     return result
 
 
-def extract_units_from_offers(offers_data: dict) -> list[dict]:
+def extract_unit_price(listing: dict) -> Optional[dict]:
+    """
+    Extract per-unit pricing from LodgingCategorizedUnit.
+
+    Schema path discovered via GraphQL probing:
+    primarySelections[].propertyUnit.ratePlans[].priceDetails.price.{lead,total}
+
+    Args:
+        listing: A LodgingCategorizedUnit object from categorizedListings
+
+    Returns:
+        Price dict with amount, formatted, total, and currency, or None if not available
+    """
+    primary_selections = listing.get("primarySelections", []) or []
+
+    for selection in primary_selections:
+        if not isinstance(selection, dict):
+            continue
+
+        property_unit = selection.get("propertyUnit", {}) or {}
+        rate_plans = property_unit.get("ratePlans", []) or []
+
+        for rate_plan in rate_plans:
+            if not isinstance(rate_plan, dict):
+                continue
+
+            price_details = rate_plan.get("priceDetails", {}) or {}
+            price = price_details.get("price", {}) or {}
+
+            lead = price.get("lead", {}) or {}
+            total = price.get("total", {}) or {}
+
+            # Check if we have actual price data
+            if lead.get("amount") is not None or lead.get("formatted"):
+                currency_info = lead.get("currencyInfo", {}) or {}
+                return {
+                    "amount": lead.get("amount"),
+                    "formatted": lead.get("formatted"),
+                    "total": total.get("amount"),
+                    "totalFormatted": total.get("formatted"),
+                    "currency": currency_info.get("code")
+                }
+
+    return None
+
+
+def extract_units_from_offers(
+    offers_data: dict,
+    gallery_data: Optional[dict] = None
+) -> list[dict]:
     """
     Extract unit information from PropertyOffers categorizedListings.
 
@@ -723,11 +772,20 @@ def extract_units_from_offers(offers_data: dict) -> list[dict]:
     - header.subText: Unit description (if available)
     - features[].text: Unit features (e.g., "248 sq ft • Sleeps 2 • 1 Queen Bed")
 
+    Per-unit pricing is extracted from:
+    primarySelections[].propertyUnit.ratePlans[].priceDetails.price.{lead,total}
+
+    Note on images:
+    - Unit-specific images: The API's propertyUnit.gallery field exists but typically
+      returns empty. As a fallback, we use property-level images from ProductGallery
+      "Bedrooms" category, distributed across units.
+
     Args:
         offers_data: Raw PropertyOffers API response
+        gallery_data: Raw ProductGallery API response (optional) for fallback images
 
     Returns:
-        List of unit dicts with id, name, features (may be empty for single-unit properties)
+        List of unit dicts with id, name, features, images, and price
     """
     units = []
 
@@ -735,6 +793,51 @@ def extract_units_from_offers(offers_data: dict) -> list[dict]:
         offers_data, "data", "propertyOffers", "categorizedListings", default=[]
     )
 
+    # Extract property-level price from tripSummary as fallback (for units without per-unit pricing)
+    trip_summary = safe_get(offers_data, "data", "propertyOffers", "tripSummary", default={})
+    property_price = None
+    if trip_summary:
+        price_data = trip_summary.get("price", {}) or {}
+        lead = price_data.get("lead", {}) or {}
+        if lead.get("formatted") or lead.get("amount"):
+            currency_info = lead.get("currencyInfo", {}) or {}
+            total_data = price_data.get("total", {}) or {}
+            property_price = {
+                "amount": lead.get("amount"),
+                "formatted": lead.get("formatted"),
+                "total": total_data.get("amount"),
+                "totalFormatted": None,
+                "currency": currency_info.get("code")
+            }
+
+    # Extract fallback images from ProductGallery "Bedrooms" category
+    bedroom_images = []
+    if gallery_data:
+        categorized_images = safe_get(
+            gallery_data, "data", "productGallery", "categorizedImages", default=[]
+        )
+        for category in categorized_images or []:
+            # Look for Bedrooms/rooms category
+            cat_id = category.get("categoryId", "")
+            cat_name = category.get("categoryName", "")
+            if "rooms" in cat_id.lower() or "bedroom" in cat_name.lower():
+                images_list = category.get("images", []) or []
+                for img_item in images_list:
+                    img = img_item.get("image", {}) or {}
+                    if img.get("url"):
+                        bedroom_images.append({
+                            "url": img.get("url"),
+                            "description": img.get("description"),
+                            "aspectRatio": img.get("aspectRatio")
+                        })
+                break
+
+    num_units = sum(
+        1 for listing in (categorized_listings or [])
+        if isinstance(listing, dict) and listing.get("__typename") == "LodgingCategorizedUnit"
+    )
+
+    unit_index = 0
     for listing in categorized_listings or []:
         if not isinstance(listing, dict):
             continue
@@ -756,14 +859,28 @@ def extract_units_from_offers(offers_data: dict) -> list[dict]:
                     if isinstance(feature, dict) and feature.get("text"):
                         features.append(feature["text"])
 
+                # Extract per-unit price from primarySelections, fallback to property price
+                unit_price = extract_unit_price(listing) or property_price
+
+                # Distribute bedroom images across units as fallback
+                # Each unit gets a slice of the available images
+                unit_images = []
+                if bedroom_images and num_units > 0:
+                    images_per_unit = max(1, len(bedroom_images) // num_units)
+                    start_idx = unit_index * images_per_unit
+                    end_idx = start_idx + images_per_unit
+                    unit_images = bedroom_images[start_idx:end_idx]
+
                 units.append({
                     "id": unit_id,
                     "name": unit_name,
                     "description": unit_subtext,
                     "features": features,
-                    "images": [],  # Not available via PropertyOffers
-                    "price": None  # Price available at property level, not unit level
+                    "images": unit_images,
+                    "price": unit_price
                 })
+
+                unit_index += 1
 
     return units
 
@@ -849,7 +966,7 @@ def format_property(
     thumbnail = images[0].get("url") if images else None
 
     # Extract units from categorizedListings (multi-unit properties)
-    units = extract_units_from_offers(offers_data) if offers_data else []
+    units = extract_units_from_offers(offers_data, gallery_data) if offers_data else []
 
     # If no units found from categorizedListings, create single-unit fallback
     # This handles single-unit properties that don't have categorizedListings
