@@ -997,7 +997,8 @@ def format_property(
 
     # If no units found from categorizedListings, create single-unit fallback
     # This handles single-unit properties that don't have categorizedListings
-    if not units and pricing:
+    # Note: pricing may be None if no check-in/check-out dates were provided
+    if not units:
         units.append({
             "id": None,
             "name": None,
