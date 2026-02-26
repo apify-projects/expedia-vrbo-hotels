@@ -810,6 +810,71 @@ def _extract_price_from_object(price: dict) -> Optional[dict]:
     return None
 
 
+def _build_unit_image_map(
+    gallery_data: Optional[dict],
+    unit_names: list[str]
+) -> dict[str, list[dict]]:
+    """
+    Build a mapping of unit names to their matched gallery images.
+
+    Parses room type prefixes from gallery image descriptions (text before " | ")
+    and matches them against unit names using bidirectional prefix matching.
+
+    Args:
+        gallery_data: Raw ProductGallery API response
+        unit_names: List of unit names to match against
+
+    Returns:
+        Dict mapping unit name -> list of matched image dicts
+    """
+    result = {name: [] for name in unit_names}
+
+    if not gallery_data or not unit_names:
+        return result
+
+    # Extract images from "Rooms" gallery category
+    categorized_images = safe_get(
+        gallery_data, "data", "productGallery", "categorizedImages", default=[]
+    )
+    room_images = []
+    for category in categorized_images or []:
+        cat_id = category.get("categoryId", "")
+        cat_name = category.get("categoryName", "")
+        if "rooms" in cat_id.lower() or "bedroom" in cat_name.lower():
+            room_images = category.get("images", []) or []
+            break
+
+    # Normalize unit names for matching (lowercase, stripped)
+    normalized_units = [(name, name.lower().strip()) for name in unit_names]
+
+    for img_item in room_images:
+        img = img_item.get("image", {}) or {}
+        url = img.get("url")
+        if not url:
+            continue
+
+        description = img.get("description", "") or ""
+        if " | " not in description:
+            continue
+
+        prefix = description.split(" | ")[0].strip().lower()
+        if not prefix:
+            continue
+
+        # Bidirectional prefix match: image prefix starts with unit name
+        # or unit name starts with image prefix
+        for name, norm_name in normalized_units:
+            if prefix.startswith(norm_name) or norm_name.startswith(prefix):
+                result[name].append({
+                    "url": url,
+                    "description": img.get("description"),
+                    "aspectRatio": img.get("aspectRatio")
+                })
+                break  # Each image matches at most one unit
+
+    return result
+
+
 def extract_units_from_offers(
     offers_data: dict,
     gallery_data: Optional[dict] = None,
@@ -831,8 +896,9 @@ def extract_units_from_offers(
 
     Note on images:
     - Unit-specific images: The API's propertyUnit.gallery field exists but typically
-      returns empty. As a fallback, we use property-level images from ProductGallery
-      "Bedrooms" category, distributed across units.
+      returns empty. As a fallback, we match images from the ProductGallery "Rooms"
+      category to units by parsing room type prefixes from image descriptions
+      (text before " | "). Unmatched images stay in the property-level images array.
 
     Args:
         offers_data: Raw PropertyOffers API response
@@ -865,34 +931,20 @@ def extract_units_from_offers(
                 "currency": currency_info.get("code")
             }
 
-    # Extract fallback images from ProductGallery "Bedrooms" category
-    bedroom_images = []
-    if gallery_data:
-        categorized_images = safe_get(
-            gallery_data, "data", "productGallery", "categorizedImages", default=[]
-        )
-        for category in categorized_images or []:
-            # Look for Bedrooms/rooms category
-            cat_id = category.get("categoryId", "")
-            cat_name = category.get("categoryName", "")
-            if "rooms" in cat_id.lower() or "bedroom" in cat_name.lower():
-                images_list = category.get("images", []) or []
-                for img_item in images_list:
-                    img = img_item.get("image", {}) or {}
-                    if img.get("url"):
-                        bedroom_images.append({
-                            "url": img.get("url"),
-                            "description": img.get("description"),
-                            "aspectRatio": img.get("aspectRatio")
-                        })
-                break
+    # Collect unit names first for image matching
+    unit_names = []
+    for listing in categorized_listings or []:
+        if not isinstance(listing, dict):
+            continue
+        if listing.get("__typename") == "LodgingCategorizedUnit" and listing.get("unitId"):
+            header = listing.get("header", {}) or {}
+            name = header.get("text")
+            if name:
+                unit_names.append(name)
 
-    num_units = sum(
-        1 for listing in (categorized_listings or [])
-        if isinstance(listing, dict) and listing.get("__typename") == "LodgingCategorizedUnit"
-    )
+    # Build per-unit image map using description-based matching
+    unit_image_map = _build_unit_image_map(gallery_data, unit_names)
 
-    unit_index = 0
     for listing in categorized_listings or []:
         if not isinstance(listing, dict):
             continue
@@ -918,14 +970,8 @@ def extract_units_from_offers(
                 # Extract per-unit price from primarySelections, fallback to property price
                 unit_price = extract_unit_price(listing) or property_price
 
-                # Distribute bedroom images across units as fallback
-                # Each unit gets a slice of the available images
-                unit_images = []
-                if bedroom_images and num_units > 0:
-                    images_per_unit = max(1, len(bedroom_images) // num_units)
-                    start_idx = unit_index * images_per_unit
-                    end_idx = start_idx + images_per_unit
-                    unit_images = bedroom_images[start_idx:end_idx]
+                # Look up matched images by unit name
+                unit_images = unit_image_map.get(unit_name, [])
 
                 units.append({
                     "id": unit_id,
@@ -936,8 +982,6 @@ def extract_units_from_offers(
                     "images": unit_images,
                     "price": unit_price
                 })
-
-                unit_index += 1
 
     return units
 
