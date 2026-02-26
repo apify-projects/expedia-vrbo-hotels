@@ -260,6 +260,51 @@ def extract_amenities_summary(content_data: dict) -> list[dict]:
     return amenities_list
 
 
+def _extract_categorized_amenities_from_summary(
+    content_data: dict,
+    section_filter: Optional[str] = None
+) -> list[dict]:
+    """Extract categorized amenities from amenitiesSummary, optionally filtered by section name.
+
+    The amenitiesSummary contains sections like "Property amenities" and "Room amenities".
+    Each section has categories (element headers) with item lists.
+
+    Args:
+        content_data: Raw PropertyContent API response
+        section_filter: If provided, only return categories from sections matching this name
+            (e.g. "Room amenities"). If None, return all categories from all sections.
+
+    Returns:
+        List of category dicts like [{"title": "Bathroom", "items": ["Bathrobe", ...]}, ...]
+    """
+    categories = []
+
+    summary = safe_get(content_data, "data", "propertyInfo", "amenitiesSummary", "amenities", default={})
+    sections = summary.get("sections", [])
+
+    for section in sections:
+        if section_filter and section.get("sectionName") != section_filter:
+            continue
+
+        body_subs = section.get("bodySubSections", [])
+        for sub in body_subs:
+            elements_v2 = sub.get("elementsV2", [])
+            for elem_group in elements_v2:
+                for element in elem_group.get("elements", []):
+                    category_name = safe_get(element, "header", "text")
+                    if not category_name:
+                        continue
+
+                    items = extract_text_items(element.get("items", []))
+                    if items:
+                        categories.append({
+                            "title": category_name,
+                            "items": items
+                        })
+
+    return categories
+
+
 def extract_detailed_amenities(content_data: dict) -> list[dict]:
     """Extract detailed amenities organized by category."""
     categories = []
@@ -291,27 +336,7 @@ def extract_detailed_amenities(content_data: dict) -> list[dict]:
                     })
     else:
         # Fallback to amenitiesSummary (Expedia/Hotels.com structure)
-        # Categories are in element headers, not bodySubSection headers
-        summary = safe_get(content_data, "data", "propertyInfo", "amenitiesSummary", "amenities", default={})
-        sections = summary.get("sections", [])
-
-        for section in sections:
-            body_subs = section.get("bodySubSections", [])
-            for sub in body_subs:
-                elements_v2 = sub.get("elementsV2", [])
-                for elem_group in elements_v2:
-                    for element in elem_group.get("elements", []):
-                        # Get category name from element header
-                        category_name = safe_get(element, "header", "text")
-                        if not category_name:
-                            continue
-
-                        items = extract_text_items(element.get("items", []))
-                        if items:
-                            categories.append({
-                                "title": category_name,
-                                "items": items
-                            })
+        categories = _extract_categorized_amenities_from_summary(content_data)
 
     return categories
 
@@ -787,7 +812,8 @@ def _extract_price_from_object(price: dict) -> Optional[dict]:
 
 def extract_units_from_offers(
     offers_data: dict,
-    gallery_data: Optional[dict] = None
+    gallery_data: Optional[dict] = None,
+    room_amenities: Optional[list[dict]] = None
 ) -> list[dict]:
     """
     Extract unit information from PropertyOffers categorizedListings.
@@ -798,6 +824,7 @@ def extract_units_from_offers(
     - header.text: Unit name (e.g., "Studio", "Deluxe Studio")
     - header.subText: Unit description (if available)
     - features[].text: Unit features (e.g., "248 sq ft • Sleeps 2 • 1 Queen Bed")
+    - features[].icon.id: Feature icon identifier
 
     Per-unit pricing is extracted from:
     primarySelections[].propertyUnit.ratePlans[].priceDetails.price.{lead,total}
@@ -810,9 +837,10 @@ def extract_units_from_offers(
     Args:
         offers_data: Raw PropertyOffers API response
         gallery_data: Raw ProductGallery API response (optional) for fallback images
+        room_amenities: List of room amenity categories to attach to each unit
 
     Returns:
-        List of unit dicts with id, name, features, images, and price
+        List of unit dicts with id, name, features, amenities, images, and price
     """
     units = []
 
@@ -879,12 +907,13 @@ def extract_units_from_offers(
                 unit_name = header.get("text")
                 unit_subtext = header.get("subText")
 
-                # Extract features array
+                # Extract features array as dicts with text and iconId
                 features_data = listing.get("features", []) or []
                 features = []
                 for feature in features_data:
                     if isinstance(feature, dict) and feature.get("text"):
-                        features.append(feature["text"])
+                        icon_id = safe_get(feature, "icon", "id")
+                        features.append({"text": feature["text"], "iconId": icon_id})
 
                 # Extract per-unit price from primarySelections, fallback to property price
                 unit_price = extract_unit_price(listing) or property_price
@@ -903,6 +932,7 @@ def extract_units_from_offers(
                     "name": unit_name,
                     "description": unit_subtext,
                     "features": features,
+                    "amenities": room_amenities or [],
                     "images": unit_images,
                     "price": unit_price
                 })
@@ -992,8 +1022,11 @@ def format_property(
     # Get thumbnail (first image URL)
     thumbnail = images[0].get("url") if images else None
 
+    # Extract room amenities separately for per-unit attachment
+    room_amenities = _extract_categorized_amenities_from_summary(content_data, section_filter="Room amenities")
+
     # Extract units from categorizedListings (multi-unit properties)
-    units = extract_units_from_offers(offers_data, gallery_data) if offers_data else []
+    units = extract_units_from_offers(offers_data, gallery_data, room_amenities=room_amenities) if offers_data else []
 
     # If no units found from categorizedListings, create single-unit fallback
     # This handles single-unit properties that don't have categorizedListings
@@ -1004,6 +1037,7 @@ def format_property(
             "name": None,
             "images": [],
             "features": features,
+            "amenities": room_amenities,
             "price": pricing
         })
 
