@@ -283,8 +283,10 @@ def _extract_categorized_amenities_from_summary(
     sections = summary.get("sections", [])
 
     for section in sections:
-        if section_filter and section.get("sectionName") != section_filter:
-            continue
+        if section_filter:
+            section_name = (section.get("sectionName") or "").lower()
+            if section_filter.lower() not in section_name:
+                continue
 
         body_subs = section.get("bodySubSections", [])
         for sub in body_subs:
@@ -337,6 +339,77 @@ def extract_detailed_amenities(content_data: dict) -> list[dict]:
     else:
         # Fallback to amenitiesSummary (Expedia/Hotels.com structure)
         categories = _extract_categorized_amenities_from_summary(content_data)
+
+    return categories
+
+
+# Category names that are room-level (not property-level) amenities
+_ROOM_AMENITY_CATEGORIES = {
+    "bedroom", "bedrooms", "bathroom", "kitchen", "entertainment",
+    "food and drink", "dining", "comfort", "laundry", "living spaces",
+    "work spaces", "internet", "more",
+}
+
+
+def _extract_room_amenities_fallback(content_data: dict) -> list[dict]:
+    """Extract room-level amenities when no 'Room amenities' section exists.
+
+    Tries two sources in order:
+    1. detailedAmenitiesContent — room-relevant categories
+    2. amenitiesSummary "Property amenities" — filter for room-level categories
+
+    Filters by category name to distinguish room amenities (Bedroom, Bathroom, Kitchen, etc.)
+    from property amenities (Parking, Pool, Accessibility, etc.).
+    """
+    # Try detailedAmenitiesContent first
+    detailed = safe_get(
+        content_data, "data", "propertyInfo",
+        "detailedAmenitiesContent", "amenities", default={}
+    )
+    sections = detailed.get("sections", [])
+
+    categories = []
+    for section in sections:
+        body_subs = section.get("bodySubSections", [])
+        for sub in body_subs:
+            category_name = safe_get(sub, "header", "text")
+            if not category_name:
+                continue
+
+            if category_name.lower() not in _ROOM_AMENITY_CATEGORIES:
+                continue
+
+            items = []
+            for elem_group in sub.get("elementsV2", []) or []:
+                for element in elem_group.get("elements", []) or []:
+                    texts = extract_text_items(element.get("items", []))
+                    items.extend(texts)
+
+            if items:
+                categories.append({"title": category_name, "items": items})
+
+    if categories:
+        return categories
+
+    # Fallback: filter room-level categories from "Property amenities" in amenitiesSummary
+    summary = safe_get(
+        content_data, "data", "propertyInfo",
+        "amenitiesSummary", "amenities", default={}
+    )
+    for section in summary.get("sections", []):
+        body_subs = section.get("bodySubSections", [])
+        for sub in body_subs:
+            elements_v2 = sub.get("elementsV2", [])
+            for elem_group in elements_v2:
+                for element in elem_group.get("elements", []):
+                    category_name = safe_get(element, "header", "text")
+                    if not category_name:
+                        continue
+                    if category_name.lower() not in _ROOM_AMENITY_CATEGORIES:
+                        continue
+                    items = extract_text_items(element.get("items", []))
+                    if items:
+                        categories.append({"title": category_name, "items": items})
 
     return categories
 
@@ -457,6 +530,45 @@ def extract_host_data(content_data: dict) -> dict:
     return result
 
 
+_BED_TYPE_PATTERN = re.compile(
+    r"(\d+)\s+(king|queen|double|twin|single|sofa|bunk|full|trundle|futon)"
+    r"(?:\s+size)?\s*(?:sofa\s+)?beds?",
+    re.IGNORECASE
+)
+
+
+def extract_bed_types(features: list) -> list[dict]:
+    """Extract structured bed type information from feature text.
+
+    Parses patterns like "1 Queen Bed", "2 Twin Beds", "1 Double Bed and 1 Double Sofa Bed",
+    "1 King Bed OR 2 Single Beds" from unit feature text.
+
+    Returns:
+        List of dicts like [{"type": "Queen", "count": 1}, {"type": "Twin", "count": 2}]
+    """
+    bed_types = []
+    seen = set()
+
+    for feature in features or []:
+        text = feature.get("text", "") if isinstance(feature, dict) else str(feature)
+        for match in _BED_TYPE_PATTERN.finditer(text):
+            count = int(match.group(1))
+            bed_type = match.group(2).capitalize()
+            # "Sofa Bed" special case: "1 Double Sofa Bed" matches as "Double" with "sofa" in match
+            matched_text = text[match.start():match.end()].lower()
+            if "sofa" in matched_text and bed_type != "Sofa":
+                bed_type = f"{bed_type} Sofa"
+            elif bed_type == "Sofa":
+                bed_type = "Sofa"
+
+            key = (bed_type, count)
+            if key not in seen:
+                seen.add(key)
+                bed_types.append({"type": bed_type, "count": count})
+
+    return bed_types
+
+
 def extract_review_count(review_data: Optional[dict], summary_data: dict) -> Optional[int]:
     """Extract total review count from PropertySummary."""
     count_pattern = re.compile(r"(\d+)\s*(?:review|rating)", re.IGNORECASE)
@@ -509,7 +621,7 @@ def extract_room_setup(features: list) -> dict:
 
     sleeps_pattern = re.compile(r"[Ss]leeps?\s*(\d+)")
     bedroom_pattern = re.compile(r"(\d+)\s*bedroom", re.IGNORECASE)
-    bathroom_pattern = re.compile(r"(\d+)\s*bathroom", re.IGNORECASE)
+    bathroom_pattern = re.compile(r"(\d+)\+?\s*bathroom", re.IGNORECASE)
 
     for feature in features or []:
         text = feature.get("text", "") if isinstance(feature, dict) else str(feature)
@@ -832,22 +944,25 @@ def _build_unit_image_map(
     if not gallery_data or not unit_names:
         return result
 
-    # Extract images from "Rooms" gallery category
+    # Extract images from ALL gallery categories (not just "Rooms")
+    # Unit images appear across Kitchen, Bathroom, Living area, etc. with
+    # the "UnitName | detail" description pattern
     categorized_images = safe_get(
         gallery_data, "data", "productGallery", "categorizedImages", default=[]
     )
-    room_images = []
+    all_images = []
     for category in categorized_images or []:
+        # Skip the "all" category to avoid duplicating every image
         cat_id = category.get("categoryId", "")
-        cat_name = category.get("categoryName", "")
-        if "rooms" in cat_id.lower() or "bedroom" in cat_name.lower():
-            room_images = category.get("images", []) or []
-            break
+        if cat_id == "all":
+            continue
+        for img_item in category.get("images", []) or []:
+            all_images.append(img_item)
 
     # Normalize unit names for matching (lowercase, stripped)
     normalized_units = [(name, name.lower().strip()) for name in unit_names]
 
-    for img_item in room_images:
+    for img_item in all_images:
         img = img_item.get("image", {}) or {}
         url = img.get("url")
         if not url:
@@ -973,6 +1088,9 @@ def extract_units_from_offers(
                 # Look up matched images by unit name
                 unit_images = unit_image_map.get(unit_name, [])
 
+                # Extract bed types from features
+                bed_types = extract_bed_types(features)
+
                 units.append({
                     "id": unit_id,
                     "name": unit_name,
@@ -980,8 +1098,73 @@ def extract_units_from_offers(
                     "features": features,
                     "amenities": room_amenities or [],
                     "images": unit_images,
-                    "price": unit_price
+                    "price": unit_price,
+                    "bedTypes": bed_types or None
                 })
+
+    return units
+
+
+def extract_units_from_gallery(
+    gallery_data: Optional[dict],
+    room_amenities: Optional[list[dict]] = None
+) -> list[dict]:
+    """Extract units from gallery image descriptions when PropertyOffers has no categorizedListings.
+
+    Discovers unit names by parsing the "UnitName | detail" pattern from image descriptions
+    across all gallery categories, then groups images by unit name.
+
+    This is a fallback for properties where PropertyOffers doesn't return categorizedListings
+    but the gallery images clearly indicate multiple unit types.
+    """
+    if not gallery_data:
+        return []
+
+    categorized_images = safe_get(
+        gallery_data, "data", "productGallery", "categorizedImages", default=[]
+    )
+
+    # Collect all images with unit name prefixes
+    unit_images: dict[str, list[dict]] = {}
+
+    for category in categorized_images or []:
+        cat_id = category.get("categoryId", "")
+        if cat_id == "all":
+            continue
+        for img_item in category.get("images", []) or []:
+            img = img_item.get("image", {}) or {}
+            url = img.get("url")
+            description = img.get("description", "") or ""
+            if not url or " | " not in description:
+                continue
+
+            prefix = description.split(" | ")[0].strip()
+            if not prefix:
+                continue
+
+            if prefix not in unit_images:
+                unit_images[prefix] = []
+
+            unit_images[prefix].append({
+                "url": url,
+                "description": description,
+                "aspectRatio": img.get("aspectRatio")
+            })
+
+    if not unit_images:
+        return []
+
+    units = []
+    for name, images in unit_images.items():
+        units.append({
+            "id": None,
+            "name": name,
+            "description": None,
+            "features": [],
+            "amenities": room_amenities or [],
+            "images": images,
+            "price": None
+        })
 
     return units
 
@@ -1069,20 +1252,31 @@ def format_property(
     # Extract room amenities separately for per-unit attachment
     room_amenities = _extract_categorized_amenities_from_summary(content_data, section_filter="Room amenities")
 
+    # Fallback: if no "Room amenities" section, extract room-relevant categories from detailed amenities
+    if not room_amenities:
+        room_amenities = _extract_room_amenities_fallback(content_data)
+
     # Extract units from categorizedListings (multi-unit properties)
     units = extract_units_from_offers(offers_data, gallery_data, room_amenities=room_amenities) if offers_data else []
 
-    # If no units found from categorizedListings, create single-unit fallback
+    # Fallback: if no units from PropertyOffers, try to discover units from gallery image descriptions
+    # Properties with multiple unit types often have images labeled "UnitName | detail"
+    if not units and gallery_data:
+        units = extract_units_from_gallery(gallery_data, room_amenities=room_amenities)
+
+    # If still no units, create single-unit fallback
     # This handles single-unit properties that don't have categorizedListings
     # Note: pricing may be None if no check-in/check-out dates were provided
     if not units:
+        bed_types = extract_bed_types(features)
         units.append({
             "id": None,
             "name": None,
             "images": [],
             "features": features,
             "amenities": room_amenities,
-            "price": pricing
+            "price": pricing,
+            "bedTypes": bed_types or None
         })
 
     # Detect source from URL
