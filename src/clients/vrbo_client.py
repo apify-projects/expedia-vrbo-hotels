@@ -384,9 +384,12 @@ def validate_property_response(response_data: dict, expected_id: str) -> tuple[b
     response_id = summary.get("id")
     response_name = summary.get("name")
 
-    # Check for empty response
-    if not response_id and not response_name:
-        return False, "Empty response - no property ID or name returned"
+    # Check for empty response. A valid property always returns a non-blank name;
+    # dead listings and unresolved legacy IDs come back with the id echoed but an
+    # empty/blank name, which must be treated as a failed scrape (not a silent
+    # success with name=null).
+    if not (response_name and str(response_name).strip()):
+        return False, f"Empty response - no property name returned for ID {response_id or expected_id}"
 
     # Normalize IDs for comparison (strip any suffix)
     expected_num = re.sub(r'[a-zA-Z]+$', '', str(expected_id))
