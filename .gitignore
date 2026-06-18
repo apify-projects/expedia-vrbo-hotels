@@ -36,3 +36,5 @@ vrbo_decompiled/
 
 # Playwright MCP
 .playwright-mcp/
+
+.proxy-mcp/
