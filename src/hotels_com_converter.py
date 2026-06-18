@@ -13,8 +13,27 @@ import re
 import json
 from typing import Optional, Any
 from collections import Counter
+from urllib.parse import urlparse, parse_qs
 from curl_cffi import requests
 from curl_cffi.requests import exceptions as req_exc
+
+
+def extract_expedia_id_from_url(hotels_com_url: str) -> Optional[str]:
+    """Extract Expedia property ID directly from the URL query string.
+
+    Hotels.com search/detail URLs often carry the Expedia ID as a query param
+    (e.g. ?expediaPropertyId=615323 or &selected=615323). When present we can
+    skip the page fetch entirely.
+    """
+    try:
+        qs = parse_qs(urlparse(hotels_com_url).query)
+    except Exception:
+        return None
+    for key in ('expediaPropertyId', 'selected'):
+        vals = qs.get(key)
+        if vals and vals[0].isdigit():
+            return vals[0]
+    return None
 
 
 # Headers mimicking Hotels.com mobile app
@@ -67,8 +86,21 @@ def extract_expedia_id_from_hotels_com_html(
 
         html = response.text
 
-        # Try expediaPropertyId pattern first
-        pattern1 = r'expediaPropertyId["\']?\s*[:=]\s*["\']?(\d+)'
+        # Most reliable: clean (unescaped) meta tag rendered on every property page
+        # <meta itemProp="identifier" content="615323"/>
+        pattern0 = r'itemProp=["\']identifier["\'][^>]*content=["\'](\d+)'
+        matches = re.findall(pattern0, html)
+        if matches:
+            return matches[0]
+
+        # product_details?productId=615323 — appears many times in embedded state
+        pattern_pid = r'productId[\\"\']*[:=][\\"\']*(\d+)'
+        matches = re.findall(pattern_pid, html)
+        if matches:
+            return Counter(matches).most_common(1)[0][0]
+
+        # Try expediaPropertyId pattern (allows backslash-escaped JSON quotes)
+        pattern1 = r'expediaPropertyId[\\"\']*\s*[:=]\s*[\\"\']*(\d+)'
         matches = re.findall(pattern1, html)
         if matches:
             return matches[0]
@@ -138,6 +170,11 @@ def convert_hotels_com_to_expedia(
     Returns:
         Expedia property ID (e.g., "21856") or None if not found
     """
+    # Cheap path: ID already present in the URL query string — skip the fetch.
+    from_url = extract_expedia_id_from_url(hotels_com_url)
+    if from_url:
+        return from_url
+
     return extract_expedia_id_from_hotels_com_html(hotels_com_url, proxies=proxies)
 
 
