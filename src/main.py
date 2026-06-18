@@ -232,8 +232,6 @@ async def scrape_hotels_property(url: str, proxy_url: Optional[str] = None) -> d
     """Scrape a Hotels.com property."""
     from hotels_com_converter import convert_hotels_com_to_expedia
 
-    site = expedia_detect_site(url) or "hotels.com"
-
     # Hotels.com uses different IDs than Expedia - need to convert
     # Extract the Expedia property ID from the Hotels.com page HTML
     expedia_id = convert_hotels_com_to_expedia(url, proxy_url)
@@ -242,7 +240,11 @@ async def scrape_hotels_property(url: str, proxy_url: Optional[str] = None) -> d
 
     property_id = expedia_id
 
-    client = ExpediaPropertyClient(site=site, proxy_url=proxy_url)
+    # Scrape via the Expedia GraphQL endpoint rather than www.hotels.com/graphql:
+    # the hotels.com endpoint gets blocked (empty body) through residential proxies,
+    # while expedia.com serves the same Expedia Group backend and works reliably.
+    # The output platform/source stays "hotels.com" since it derives from `url`.
+    client = ExpediaPropertyClient(site="expedia.com", proxy_url=proxy_url)
 
     summary_data, details_data, gallery_data, offers_data, page_layout_data = await asyncio.gather(
         client.fetch_property_summary(property_id),

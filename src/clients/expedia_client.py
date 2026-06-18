@@ -250,7 +250,17 @@ class ExpediaPropertyClient:
         if response.status_code >= 400:
             raise Exception(f"HTTP {response.status_code}: {response.text[:500]}")
 
-        data = response.json()
+        try:
+            data = response.json()
+        except ValueError:
+            # Empty / non-JSON body (e.g. proxy block, edge challenge). Surface a
+            # diagnostic message instead of the cryptic "Expecting value: line 1 ...".
+            body = (response.text or "").strip()
+            snippet = body[:300] if body else "<empty body>"
+            raise Exception(
+                f"Non-JSON response from {self.graphql_endpoint} "
+                f"(HTTP {response.status_code}, {len(response.text)} bytes): {snippet}"
+            )
 
         # Check for GraphQL errors
         if raise_on_graphql_errors and "errors" in data:
