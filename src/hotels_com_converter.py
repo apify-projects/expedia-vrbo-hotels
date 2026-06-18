@@ -18,6 +18,16 @@ from curl_cffi import requests
 from curl_cffi.requests import exceptions as req_exc
 
 
+class HotelsComDelistedError(Exception):
+    """Raised when a Hotels.com URL redirects away from its property page.
+
+    Hotels.com 301-redirects unknown / delisted hotel IDs to the homepage (or to
+    a region page), so there is no property page to read the Expedia ID from.
+    This is a dead input ID, not a scraper failure.
+    """
+    pass
+
+
 def extract_expedia_id_from_url(hotels_com_url: str) -> Optional[str]:
     """Extract Expedia property ID directly from the URL query string.
 
@@ -83,6 +93,20 @@ def extract_expedia_id_from_hotels_com_html(
             proxies=proxy_dict
         )
         response.raise_for_status()
+
+        # Hotels.com 301s delisted/unknown hotel IDs to the homepage or to a region
+        # page. If the original URL named a /ho<id> property but the final URL no
+        # longer contains a /ho<id> path, the listing is gone — fail loudly instead
+        # of returning None (which reads as a converter bug).
+        orig_match = re.search(r'/ho\d+', urlparse(hotels_com_url).path)
+        if orig_match:
+            final_path = urlparse(str(response.url)).path
+            if not re.search(r'/ho\d+', final_path):
+                raise HotelsComDelistedError(
+                    f"Hotels.com no longer lists this property "
+                    f"(ID {orig_match.group(0).lstrip('/ho')}); "
+                    f"{hotels_com_url} redirected to {response.url}"
+                )
 
         html = response.text
 
@@ -150,6 +174,8 @@ def extract_expedia_id_from_hotels_com_html(
 
         return None
 
+    except HotelsComDelistedError:
+        raise
     except req_exc.RequestException:
         return None
     except Exception:

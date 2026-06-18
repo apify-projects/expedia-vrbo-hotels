@@ -22,6 +22,7 @@ from apify import Actor
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from url_parser import extract_property_id, URLParseError, detect_platform
+from hotels_com_converter import HotelsComDelistedError
 from clients.vrbo_client import (
     VrboPropertyClient,
     detect_site_from_url as vrbo_detect_site,
@@ -341,6 +342,13 @@ async def main():
                     error_result = format_error(original_url, property_id, str(e), "unknown")
                     await Actor.push_data(error_result)
                     Actor.log.error(f"URL parse error for {url}: {e}")
+                    break
+
+                except HotelsComDelistedError as e:
+                    # Hotels.com delisted this ID (redirects to homepage) - not retryable
+                    error_result = format_error(original_url, property_id, str(e), "hotels.com")
+                    await Actor.push_data(error_result)
+                    Actor.log.error(f"Delisted Hotels.com property: {e}")
                     break
 
                 except Exception as e:
