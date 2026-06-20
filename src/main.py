@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from apify import Actor
+from apify import Actor, Event
 
 # Add src to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -31,6 +31,13 @@ from clients.vrbo_client import (
 )
 from clients.expedia_client import ExpediaPropertyClient, detect_site_from_url as expedia_detect_site
 from formatters.vrbo_formatter import format_property, format_error
+
+
+# Key in the default key-value store holding resume state across migrations/aborts.
+# The actor's dataset and KV store are reused when a run is resurrected, so we record
+# which input URLs already produced a row and skip them instead of re-scraping (which
+# would append duplicate rows to the dataset).
+STATE_KEY = "PROCESSED_URLS"
 
 
 # Short URL domains that need resolution
@@ -304,11 +311,30 @@ async def main():
             Actor.log.warning("No URLs provided in input")
             return
 
-        Actor.log.info(f"Processing {len(urls)} URLs")
+        # Resume state: input URLs that have already produced a dataset row in a
+        # previous (aborted/migrated) run. Each input URL maps to exactly one row,
+        # so skipping these avoids duplicates without losing any output.
+        processed = set(await Actor.get_value(STATE_KEY) or [])
+
+        async def persist_state():
+            await Actor.set_value(STATE_KEY, sorted(processed))
+
+        # Persist on migration/abort and on the SDK's periodic PERSIST_STATE tick, as
+        # insurance on top of the per-URL save below (covers graceful shutdowns).
+        Actor.on(Event.MIGRATING, lambda _=None: asyncio.ensure_future(persist_state()))
+        Actor.on(Event.PERSIST_STATE, lambda _=None: asyncio.ensure_future(persist_state()))
+
+        remaining = [u for u in urls if u not in processed]
+        if processed:
+            Actor.log.info(
+                f"Resuming: {len(processed)} URLs already done, "
+                f"{len(remaining)} of {len(urls)} remaining"
+            )
+        Actor.log.info(f"Processing {len(remaining)} URLs")
 
         max_retries = actor_input.get("maxRetries", 3)
 
-        for url in urls:
+        for url in remaining:
             original_url = url
             property_id = "unknown"
             last_error = None
@@ -362,6 +388,12 @@ async def main():
                         error_result = format_error(original_url, property_id, str(e), "unknown")
                         await Actor.push_data(error_result)
                         Actor.log.error(f"Failed to scrape {url} after {max_retries} attempts: {e}")
+
+            # Every exit path of the attempt loop pushes exactly one terminal row
+            # (success, parse error, delisted, or final failure). Record the input URL
+            # immediately so a resurrected run skips it instead of appending a duplicate.
+            processed.add(original_url)
+            await persist_state()
 
 
 if __name__ == "__main__":
