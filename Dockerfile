@@ -11,8 +11,11 @@ RUN npm run build
 FROM apify/actor-node:22
 
 COPY package*.json ./
+# NOTE: do NOT pass --omit=optional — impit ships its prebuilt native binding
+# (@impit/linux-*) as an optional dependency; omitting it makes the actor crash
+# on startup with "impit couldn't load native bindings".
 RUN npm --quiet set progress=false \
-    && npm install --omit=dev --omit=optional --audit=false \
+    && npm install --omit=dev --audit=false \
     && echo "Installed NPM packages:" \
     && (npm list --omit=dev --all || true) \
     && echo "Node.js version:" \
