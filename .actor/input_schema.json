@@ -9,14 +9,25 @@
       "description": "List of property URLs from VRBO, Expedia, or Hotels.com. Platform is auto-detected from URL.",
       "editor": "stringList",
       "prefill": [
-        "https://www.vrbo.com/4084796"
+        "https://www.expedia.com/Prague-Hotels-Pentahotel-Prague.h525006.Hotel-Information"
       ]
     },
+    "maxConcurrency": {
+      "title": "Max concurrency",
+      "type": "integer",
+      "description": "Maximum number of property URLs scraped in parallel. Higher finishes large lists faster but increases block risk.",
+      "editor": "number",
+      "default": 10,
+      "minimum": 1,
+      "unit": "URLs"
+    },
     "proxyConfiguration": {
-      "title": "Proxy Configuration",
+      "title": "Proxy configuration",
       "type": "object",
-      "description": "Proxy settings for requests",
+      "description": "Proxy settings. Residential proxies are used by default and strongly recommended — the Mobile GraphQL API blocks datacenter IPs.",
       "editor": "proxy",
+      "prefill": { "useApifyProxy": true, "apifyProxyGroups": ["RESIDENTIAL"] },
+      "default": { "useApifyProxy": true, "apifyProxyGroups": ["RESIDENTIAL"] },
       "sectionCaption": "Proxy settings"
     }
   },

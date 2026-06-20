@@ -1,17 +1,29 @@
-# Use official Apify Python image
-FROM apify/actor-python:3.11
+# Build stage: compile TypeScript to dist/
+FROM apify/actor-node:22 AS builder
 
-# Set working directory
-WORKDIR /app
+COPY package*.json ./
+RUN npm install --include=dev --audit=false
 
-# Copy requirements first for better caching
-COPY requirements.txt ./
+COPY . ./
+RUN npm run build
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Runtime stage: production deps + compiled output only
+FROM apify/actor-node:22
 
-# Copy the rest of the application
-COPY . .
+COPY package*.json ./
+# NOTE: do NOT pass --omit=optional — impit ships its prebuilt native binding
+# (@impit/linux-*) as an optional dependency; omitting it makes the actor crash
+# on startup with "impit couldn't load native bindings".
+RUN npm --quiet set progress=false \
+    && npm install --omit=dev --audit=false \
+    && echo "Installed NPM packages:" \
+    && (npm list --omit=dev --all || true) \
+    && echo "Node.js version:" \
+    && node --version \
+    && echo "NPM version:" \
+    && npm --version
 
-# Set the entry point
-CMD ["python", "src/main.py"]
+COPY --from=builder /usr/src/app/dist ./dist
+COPY . ./
+
+CMD ["npm", "run", "start:prod", "--silent"]
