@@ -3,8 +3,8 @@
  *
  * Drives the REAL per-URL pipeline (`scrapeProperty`) through a fake HttpClient
  * (the "faked impit boundary") that replays golden fixtures captured from the
- * live Python actor (`spike/capture_fixtures.py`). Asserts the single Terminal
- * row the TS pipeline produces equals the Python row.
+ * live Python actor at cutover (provenance: test/fixtures/README.md). Asserts
+ * the single Terminal row the TS pipeline produces equals the Python row.
  *
  * Normalization (per the PRD): `scrapedAt` is a non-deterministic timestamp and
  * is ignored; reading the fixture JSON in JS collapses Python's float text

@@ -171,6 +171,11 @@ export class PropertyClient {
             body: JSON.stringify(payload),
         });
         const body = await resp.text();
+        if (resp.status === 403 || resp.status === 429) {
+            // Hard block codes → BlockedResponseError so the caller retires the
+            // session and the retry lands a fresh IP (ADR-0003, spike/RESULTS.md).
+            throw new BlockedResponseError(`HTTP ${resp.status} block from ${this.endpoint}`);
+        }
         if (resp.status >= 400) {
             throw new Error(`HTTP ${resp.status}: ${body.slice(0, 500)}`);
         }

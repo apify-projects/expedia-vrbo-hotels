@@ -30,19 +30,19 @@ interface ActorInput {
     maxRequestRetries?: number;
 }
 
-/** Best-effort id + source for an error row, matching main.py's error paths. */
-function errorRowMeta(url: string, error: unknown): { id: string; source: string } {
+/** Best-effort id + Platform tag for an error row, matching main.py's error paths. */
+function errorRowMeta(url: string, error: unknown): { id: string; platform: string } {
     let id = 'unknown';
     try {
-        const platform = detectPlatform(url);
-        const extracted = platform === 'vrbo' ? extractVrboPropertyId(url)[0] : extractPropertyId(url)[0];
+        const plat = detectPlatform(url);
+        const extracted = plat === 'vrbo' ? extractVrboPropertyId(url)[0] : extractPropertyId(url)[0];
         id = extracted ?? 'unknown';
     } catch {
         // leave id as 'unknown'
     }
-    // Python tags delisted Hotels.com rows "hotels.com"; everything else "unknown".
-    const source = error instanceof HotelsComDelistedError ? 'hotels.com' : 'unknown';
-    return { id, source };
+    // Python tags delisted Hotels.com error rows "hotels.com"; everything else "unknown".
+    const platform = error instanceof HotelsComDelistedError ? 'hotels.com' : 'unknown';
+    return { id, platform };
 }
 
 await Actor.init();
@@ -93,9 +93,9 @@ const crawler = new BasicCrawler({
 
     async failedRequestHandler({ request }: BasicCrawlingContext, error: Error) {
         // Single source of every error row → preserves the one-row-per-URL invariant.
-        const { id, source } = errorRowMeta(request.url, error);
+        const { id, platform } = errorRowMeta(request.url, error);
         const message = error?.message ?? String(error);
-        await Actor.pushData(formatError(request.url, id, message, source));
+        await Actor.pushData(formatError(request.url, id, message, platform));
         log.error(`Failed: ${request.url} — ${message}`);
     },
 });
