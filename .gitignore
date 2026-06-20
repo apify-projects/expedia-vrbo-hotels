@@ -12,6 +12,11 @@ ENV/
 storage/
 apify_storage/
 
+# Node / TypeScript
+node_modules/
+dist/
+*.tsbuildinfo
+
 # IDE
 .idea/
 .vscode/

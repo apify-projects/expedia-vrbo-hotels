@@ -1,0 +1,37 @@
+{
+    "name": "vrbo-expedia-hotels-scraper",
+    "version": "1.0.0",
+    "type": "module",
+    "description": "Unified scraper for VRBO, Expedia, and Hotels.com property details via the Expedia Group Mobile GraphQL API.",
+    "engines": {
+        "node": ">=20.0.0"
+    },
+    "scripts": {
+        "start": "npm run start:prod",
+        "start:prod": "node dist/main.js",
+        "start:dev": "tsx src/main.ts",
+        "build": "tsc",
+        "typecheck": "tsc --noEmit",
+        "lint": "eslint src test",
+        "lint:fix": "eslint src test --fix",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:smoke": "SMOKE=1 vitest run test/smoke.test.ts"
+    },
+    "dependencies": {
+        "apify": "^3.7.2",
+        "cheerio": "^1.2.0",
+        "crawlee": "^3.17.0",
+        "impit": "^0.14.1"
+    },
+    "devDependencies": {
+        "@apify/eslint-config": "^2.0.6",
+        "@apify/tsconfig": "^0.2.0",
+        "@types/node": "^22.10.0",
+        "eslint": "^9.18.0",
+        "tsx": "^4.19.0",
+        "typescript": "^5.9.0",
+        "typescript-eslint": "^8.20.0",
+        "vitest": "^2.1.0"
+    }
+}

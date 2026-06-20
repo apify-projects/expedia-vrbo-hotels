@@ -1,5 +1,0 @@
-apify~=3.0
-tls-client~=1.0
-python-dateutil~=2.8
-curl_cffi
-httpx~=0.27

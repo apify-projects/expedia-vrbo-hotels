@@ -8,8 +8,15 @@ still presents an okhttp-family fingerprint.
 
 ## Status
 
-proposed — gated on a pass-rate spike (≈10 signed `okhttp4` GraphQL requests
-through residential, validating real property bodies) before the full port.
+**accepted** — the gate-zero spike (issue #2) passed. Holding HMAC, headers,
+body and proxy constant and varying only the TLS fingerprint, 12 signed
+`PropertySummary` requests through residential gave: impit `okhttp4` **11/12**
+(the one miss a proxy-590 tunnel error, not a block) vs the `tls_client`
+`okhttp4_android_13` baseline **12/12**; impit `chrome` was **0/12** (429). So
+impit's okhttp4 target is accepted at ≈baseline. It is an okhttp-*family*
+fingerprint (JA4 differs from the exact `okhttp4_android_13`), so **pin the impit
+version** — an upgrade re-opens this gate — and keep the `node-tls-client`
+fallback documented below. Full evidence: `spike/RESULTS.md`.
 
 ## Considered Options
 
