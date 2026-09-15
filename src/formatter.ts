@@ -1,11 +1,10 @@
 /**
- * Output formatter for VRBO / Expedia / Hotels.com property details.
+ * Output formatter for Vrbo / Expedia / Hotels.com property details.
  *
- * FAITHFUL, behavior-preserving port of `src/formatters/vrbo_formatter.py`.
- * Transforms raw PropertyContent / PropertySummary / ProductGallery /
- * PropertyOffers / TemplatePageLayout API responses into the target output
- * schema. Field names, fallback ordering, null-vs-absent semantics, and
- * number/string formatting mirror the Python exactly.
+ * Turns the raw PropertySummary / PropertyContent / ProductGallery /
+ * PropertyOffers / TemplatePageLayout responses into one dataset row. The
+ * fallback order between those sources is load-bearing: several fields have a
+ * second source, used only when the first is empty.
  *
  * All functions are pure (no network, no I/O).
  */

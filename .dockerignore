@@ -8,14 +8,12 @@ storage
 apify_storage
 test
 spike
-docs
 .claude
 .proxy-mcp
 .playwright-mcp
 **/__pycache__
 *.py
 *.log
-CONTEXT.md
 AGENTS.md
 CLAUDE.md
 PLAN.md

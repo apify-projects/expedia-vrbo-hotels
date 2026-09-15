@@ -1,9 +1,8 @@
 /**
  * Regional Site configurations for VRBO and Expedia/Hotels.com.
  *
- * Faithful port of the SITE_CONFIGS maps in `clients/vrbo_client.py` and
- * `clients/expedia_client.py`. Insertion order is preserved so substring
- * detection resolves the same key the Python code did.
+ * Insertion order matters: detection matches on substrings, so a shorter domain
+ * listed first would shadow a longer one that contains it.
  */
 
 export interface VrboSiteConfig {

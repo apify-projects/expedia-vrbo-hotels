@@ -3,9 +3,6 @@
 Notes a fluent Apify engineer would not guess from the code. Generic Apify and
 Crawlee guidance is deliberately not repeated here.
 
-Domain vocabulary is in `CONTEXT.md`; the decisions and their evidence are in
-`docs/adr/`.
-
 ## Shape
 
 `main.ts` validates and de-duplicates the input URLs, then hands them to the
@@ -13,6 +10,11 @@ router in `routes.ts`, which has one handler per Platform. A handler resolves th
 Property ID, calls `property-client.ts` for the GraphQL data, and pushes one row
 built by `formatter.ts`. `resolvers.ts` is pure parsing — it never makes a
 request.
+
+The crawler is `HttpCrawler` rather than `CheerioCrawler` because the GraphQL
+responses are JSON; Cheerio is used directly in `resolvers.ts`, where there is
+real HTML. Resume and concurrency are Crawlee's, and there is no concurrency
+input because one URL fans out into five calls.
 
 Run it locally with `apify run`, which reads
 `storage/key_value_stores/default/INPUT.json`.
@@ -24,8 +26,8 @@ identities (Vrbo and Expedia) over the same schema, selected by `Profile` in
 `property-client.ts`.
 
 - Every request needs HMAC-signed headers (`auth.ts`) and a recognised TLS
-  fingerprint. The default fingerprint of an HTTP client gets a flat 429 — see
-  `docs/adr/0001`.
+  fingerprint, which is why the client is impit with `browser: 'okhttp4'`. Its
+  bare default gets a flat 429; the measurements are in `spike/RESULTS.md`.
 - `queries.ts` is generated from the APK and must stay byte-identical to what the
   app sends. It is excluded from Prettier and ESLint for that reason; do not
   reformat or "tidy" it.
@@ -33,8 +35,10 @@ identities (Vrbo and Expedia) over the same schema, selected by `Profile` in
   data for some ids. Hotels.com is scraped through the **Expedia** endpoint,
   because `hotels.com/graphql` soft-blocks through residential proxies.
 - The five GraphQL calls for one Property must share one IP, so they go through
-  `context.sendRequest` rather than becoming queue entries. `docs/adr/0002`
-  records why splitting them is worse.
+  `context.sendRequest` rather than becoming queue entries. They also total
+  ~760 KB, far past what `userData` can carry between requests.
+- One input URL produces exactly one dataset row. Handlers push success rows;
+  every error row comes from the single `failedRequestHandler` in `main.ts`.
 
 ## Which requests fetch a page
 

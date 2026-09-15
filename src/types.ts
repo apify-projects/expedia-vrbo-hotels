@@ -1,14 +1,13 @@
 /**
- * Output types for the property formatter.
+ * The dataset row shapes `formatter.ts` produces.
  *
- * Faithful port of the output dict shapes produced by
- * `src/formatters/vrbo_formatter.py` (`format_property` and `format_error`).
- * Field names, ordering, and null-vs-absent semantics mirror the Python output
- * exactly so a downstream parity test can diff against the Python actor.
+ * Field order is the row's column order, and the null-vs-absent distinction is
+ * deliberate: a null field is one the API did not fill, an absent one is a field
+ * that code path never builds.
  */
 import type { Platform } from './url-parser.js';
 
-/** An image entry produced by `extract_images`. */
+/** An image entry produced by `extractImages`. */
 export interface PropertyImage {
     url: string;
     /** description may be null (image.description / img_info.description fallback). */
@@ -16,8 +15,8 @@ export interface PropertyImage {
 }
 
 /**
- * A per-unit image produced by `_build_unit_image_map` /
- * `extract_units_from_gallery`. Carries an extra aspectRatio field.
+ * A per-unit image, from `buildUnitImageMap` or `extractUnitsFromGallery`.
+ * Carries an extra aspectRatio field.
  */
 export interface UnitImage {
     url: string;
@@ -25,7 +24,7 @@ export interface UnitImage {
     aspectRatio: string | null;
 }
 
-/** A highlighted amenity from `extract_amenities_summary`. */
+/** A highlighted amenity from `extractAmenitiesSummary`. */
 export interface HighlightedAmenity {
     iconId: string | null;
     text: string;
@@ -62,13 +61,13 @@ export interface HouseRules {
     eventsAllowed: boolean | null;
 }
 
-/** A property/unit feature ({iconId, text}) from `extract_features`. */
+/** A property/unit feature from `extractFeatures`. */
 export interface Feature {
     iconId: string | null;
     text: string;
 }
 
-/** A structured bed type from `extract_bed_types`. */
+/** A structured bed type from `extractBedTypes`. */
 export interface BedType {
     type: string;
     count: number;
@@ -78,8 +77,8 @@ export interface BedType {
  * A unit entry. Units are built from three code paths with slightly different
  * key sets, so several fields are optional/absent:
  *
- * - from offers (`extract_units_from_offers`): has `bedTypes`.
- * - from gallery (`extract_units_from_gallery`): NO `bedTypes` key.
+ * - from offers (`extractUnitsFromOffers`): has `bedTypes`.
+ * - from gallery (`extractUnitsFromGallery`): NO `bedTypes` key.
  * - single-unit fallback: NO top-level `description` key, but has `bedTypes`.
  */
 export interface PropertyUnit {
@@ -94,7 +93,7 @@ export interface PropertyUnit {
     bedTypes?: BedType[] | null;
 }
 
-/** The Terminal success row returned by `format_property`. */
+/** The success row returned by `formatProperty`. */
 export interface PropertyResult {
     platform: Platform;
     url: string;
@@ -124,7 +123,7 @@ export interface PropertyResult {
     scrapedAt: string;
 }
 
-/** The Terminal error row returned by `format_error`. */
+/** The error row returned by `formatError`. */
 export interface ErrorRow {
     platform: Platform | null;
     url: string;

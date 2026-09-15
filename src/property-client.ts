@@ -186,7 +186,7 @@ export class PropertyClient {
         const { body, statusCode } = response;
         if (statusCode === 403 || statusCode === 429) {
             // Hard block codes → BlockedResponseError so the caller retires the
-            // session and the retry lands a fresh IP (ADR-0003, spike/RESULTS.md).
+            // session and the retry lands a fresh IP.
             throw new BlockedResponseError(`HTTP ${statusCode} block from ${this.endpoint}`);
         }
         if (statusCode >= 400) {

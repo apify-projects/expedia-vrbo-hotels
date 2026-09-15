@@ -1,12 +1,12 @@
 /**
  * HMAC signing for Expedia Group Mobile GraphQL API authentication.
  *
- * Faithful port of the Python `src/auth.py`. Works for VRBO, Expedia, and
- * Hotels.com — all share the same credentials. The signature scheme is the
- * reverse-engineered HMACInterceptor from the Expedia Android apps.
+ * Works for VRBO, Expedia and Hotels.com — all three share the same credentials.
+ * The signature scheme is the reverse-engineered HMACInterceptor from the Expedia
+ * Android apps.
  *
- * Cross-checked byte-equal against the Python implementation (see
- * `test/auth.test.ts`).
+ * `test/auth.test.ts` pins the output against signatures captured from a known
+ * working client, so a change here has to keep those passing.
  */
 import { createHmac } from 'node:crypto';
 

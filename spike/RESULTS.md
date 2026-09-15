@@ -54,10 +54,13 @@ real properties) and were excluded. The variety axis exercised was **IP**
   (429)**, impit **okhttp4 → ~100% accepted**. The TLS fingerprint is the
   deciding variable, and impit's okhttp4 target clears the bar.
 
-## Consequences for the port (ADR-0001)
+## Consequences for the port
 
 - **Use impit with `browser: "okhttp4"`.** Do **not** use `chrome`/`firefox`/
-  default — only the okhttp4 target is accepted.
+  default — only the okhttp4 target is accepted. (A later re-check from a single
+  IP had `chrome` and `firefox` passing too, with only impit's bare default
+  blocked. Six requests from one IP, so it does not overturn the table above, but
+  the okhttp4 pin is not proven load-bearing either.)
 - **Pin the impit version.** Acceptance rides on impit's okhttp4 fingerprint;
   treat an impit upgrade as a change that re-opens this gate.
 - **Keep `node-tls-client` (exact `okhttp4_android_13`) as the documented

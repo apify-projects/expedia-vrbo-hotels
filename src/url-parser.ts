@@ -1,9 +1,9 @@
 /**
  * URL parsing and platform detection for Expedia, Hotels.com, and VRBO.
  *
- * Faithful port of `src/url_parser.py` (generic extract/detect) plus the
- * VRBO-specific id/suffix extractor from `clients/vrbo_client.py`. Regexes and
- * branch order are preserved exactly so parsing matches the Python byte-for-byte.
+ * The regexes and the order they are tried in are load-bearing: several URL
+ * shapes match more than one pattern, so reordering the branches changes which id
+ * wins.
  */
 import { URLParseError } from './errors.js';
 
