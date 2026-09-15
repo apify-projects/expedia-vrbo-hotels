@@ -13,12 +13,12 @@
 import { Actor } from 'apify';
 import { BasicCrawler, type BasicCrawlingContext, log } from 'crawlee';
 
-import { BlockedResponseError, HotelsComDelistedError } from './errors.js';
+import { BlockedResponseError } from './errors.js';
 import { formatError } from './formatter.js';
 import { ImpitHttpClient } from './http/impit-client.js';
 import type { ClientKind, ScrapeDeps } from './pipeline.js';
 import { scrapeProperty } from './pipeline.js';
-import { detectPlatform, extractPropertyId, extractVrboPropertyId } from './url-parser.js';
+import { detectPlatform, extractPropertyId, extractVrboPropertyId, type Platform } from './url-parser.js';
 
 interface ActorInput {
     urls?: string[] | string;
@@ -30,19 +30,16 @@ interface ActorInput {
     maxRequestRetries?: number;
 }
 
-/** Best-effort id + Platform tag for an error row, matching main.py's error paths. */
-function errorRowMeta(url: string, error: unknown): { id: string; platform: string } {
-    let id = 'unknown';
+/** Best-effort id + Platform tag for an error row. */
+function errorRowMeta(url: string): { id: string; platform: Platform | null } {
+    const platform = detectPlatform(url);
+    if (!platform) return { id: 'unknown', platform: null };
     try {
-        const plat = detectPlatform(url);
-        const extracted = plat === 'vrbo' ? extractVrboPropertyId(url)[0] : extractPropertyId(url)[0];
-        id = extracted ?? 'unknown';
+        const extracted = platform === 'vrbo' ? extractVrboPropertyId(url)[0] : extractPropertyId(url)[0];
+        return { id: extracted ?? 'unknown', platform };
     } catch {
-        // leave id as 'unknown'
+        return { id: 'unknown', platform };
     }
-    // Python tags delisted Hotels.com error rows "hotels.com"; everything else "unknown".
-    const platform = error instanceof HotelsComDelistedError ? 'hotels.com' : 'unknown';
-    return { id, platform };
 }
 
 await Actor.init();
@@ -93,7 +90,7 @@ const crawler = new BasicCrawler({
 
     async failedRequestHandler({ request }: BasicCrawlingContext, error: Error) {
         // Single source of every error row → preserves the one-row-per-URL invariant.
-        const { id, platform } = errorRowMeta(request.url, error);
+        const { id, platform } = errorRowMeta(request.url);
         const message = error?.message ?? String(error);
         await Actor.pushData(formatError(request.url, id, message, platform));
         log.error(`Failed: ${request.url} — ${message}`);

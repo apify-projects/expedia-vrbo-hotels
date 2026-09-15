@@ -28,6 +28,7 @@ import {
     detectPlatform,
     extractPropertyId,
     extractVrboPropertyId,
+    type Platform,
 } from './url-parser.js';
 
 /** Which fingerprint a client needs: GraphQL/okhttp4 vs Hotels.com HTML/chrome. */
@@ -46,6 +47,7 @@ async function fetchAndFormat(
     client: PropertyClient,
     propertyId: string,
     url: string,
+    platform: Platform,
 ): Promise<PropertyResult> {
     const [summaryData, contentData, galleryData, offersData, pageLayoutData] = await Promise.all([
         client.fetchPropertySummary(propertyId),
@@ -54,7 +56,7 @@ async function fetchAndFormat(
         client.fetchPropertyOffers(propertyId),
         client.fetchPageLayout(propertyId),
     ]);
-    return formatProperty({ summaryData, contentData, url, propertyId, galleryData, offersData, pageLayoutData });
+    return formatProperty({ summaryData, contentData, url, propertyId, platform, galleryData, offersData, pageLayoutData });
 }
 
 async function scrapeVrbo(url: string, deps: ScrapeDeps): Promise<PropertyResult> {
@@ -66,7 +68,7 @@ async function scrapeVrbo(url: string, deps: ScrapeDeps): Promise<PropertyResult
     const resolvedId = await resolveLegacyPropertyId(url, propertyId, suffix ?? '', http);
 
     const client = new PropertyClient({ profile: makeVrboProfile(), site: VRBO_SITE_CONFIGS['vrbo.com'], http });
-    return fetchAndFormat(client, resolvedId, url);
+    return fetchAndFormat(client, resolvedId, url, 'vrbo');
 }
 
 async function scrapeExpedia(url: string, deps: ScrapeDeps): Promise<PropertyResult> {
@@ -77,7 +79,7 @@ async function scrapeExpedia(url: string, deps: ScrapeDeps): Promise<PropertyRes
 
     const http = deps.makeClient('graphql');
     const client = new PropertyClient({ profile: makeExpediaProfile(site), site, http });
-    return fetchAndFormat(client, propertyId, url);
+    return fetchAndFormat(client, propertyId, url, 'expedia');
 }
 
 async function scrapeHotels(url: string, deps: ScrapeDeps): Promise<PropertyResult> {
@@ -87,12 +89,11 @@ async function scrapeHotels(url: string, deps: ScrapeDeps): Promise<PropertyResu
     if (!expediaId) throw new URLParseError(`Hotels.com page loaded but contained no Expedia property ID: ${url}`);
 
     // Scrape via the Expedia endpoint (hotels.com/graphql soft-blocks through
-    // residential proxies). The output source stays "Hotels.com" since it derives
-    // from `url`.
+    // residential proxies).
     const site = EXPEDIA_SITE_CONFIGS['expedia.com'];
     const http = deps.makeClient('graphql');
     const client = new PropertyClient({ profile: makeExpediaProfile(site), site, http });
-    return fetchAndFormat(client, expediaId, url);
+    return fetchAndFormat(client, expediaId, url, 'hotels.com');
 }
 
 /**

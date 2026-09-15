@@ -9,6 +9,13 @@ import { URLParseError } from './errors.js';
 
 export type Platform = 'expedia' | 'hotels.com' | 'vrbo';
 
+/** How each Platform is spelled in the output. */
+export const PLATFORM_LABEL_MAP: Record<Platform, string> = {
+    expedia: 'Expedia',
+    'hotels.com': 'Hotels.com',
+    vrbo: 'VRBO',
+};
+
 function hostnameOf(url: string): string {
     try {
         return new URL(url).hostname.toLowerCase();

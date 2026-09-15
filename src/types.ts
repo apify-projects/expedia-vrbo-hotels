@@ -166,7 +166,7 @@ export interface PropertyResult {
 
 /** The Terminal error row returned by `format_error`. */
 export interface ErrorRow {
-    source: string;
+    source: string | null;
     url: string;
     id: string;
     error: string;

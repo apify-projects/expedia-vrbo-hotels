@@ -28,6 +28,7 @@ import type {
     UnitImage,
     UnitPrice,
 } from './types.js';
+import { type Platform, PLATFORM_LABEL_MAP } from './url-parser.js';
 
 // ---------------------------------------------------------------------------
 // Python-semantics helpers
@@ -1024,7 +1025,7 @@ function extractImages(galleryData: any): PropertyImage[] {
         }
         const image = safeGet(imgInfo, ['image'], {});
         const url = isDict(image) ? image.url ?? null : null;
-        const description = (isDict(image) ? image.description ?? null : null) ?? imgInfo.description ?? null;
+        const description = (isDict(image) ? image.description : null) ?? imgInfo.description ?? null;
         if (pyTruthy(url)) {
             images.push({
                 url,
@@ -1046,7 +1047,7 @@ function extractImages(galleryData: any): PropertyImage[] {
             }
             const image = safeGet(imgInfo, ['image'], {});
             const url = isDict(image) ? image.url ?? null : null;
-            const description = (isDict(image) ? image.description ?? null : null) ?? imgInfo.description ?? null;
+            const description = (isDict(image) ? image.description : null) ?? imgInfo.description ?? null;
             if (pyTruthy(url) && !images.some((i) => i.url === url)) {
                 images.push({
                     url,
@@ -1496,6 +1497,7 @@ export function formatProperty(args: {
     contentData: any;
     url: string;
     propertyId: string;
+    platform: Platform;
     galleryData?: any;
     offersData?: any;
     pageLayoutData?: any;
@@ -1505,6 +1507,7 @@ export function formatProperty(args: {
         contentData,
         url,
         propertyId,
+        platform,
         galleryData = null,
         offersData = null,
         pageLayoutData = null,
@@ -1609,16 +1612,8 @@ export function formatProperty(args: {
         });
     }
 
-    // Detect source from URL.
-    let source = 'VRBO';
-    if (url.includes('expedia.com')) {
-        source = 'Expedia';
-    } else if (url.includes('hotels.com')) {
-        source = 'Hotels.com';
-    }
-
     return {
-        source,
+        source: PLATFORM_LABEL_MAP[platform],
         url,
         id: propertyId,
         name: name || tagline,
@@ -1654,10 +1649,10 @@ export function formatError(
     url: string,
     propertyId: string,
     error: string,
-    platform: string,
+    platform: Platform | null,
 ): ErrorRow {
     return {
-        source: platform,
+        source: platform ? PLATFORM_LABEL_MAP[platform] : null,
         url,
         id: propertyId,
         error,
