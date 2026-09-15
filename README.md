@@ -35,8 +35,9 @@ number mostly just raises the block rate.
 
 ## Output
 
-One **Terminal row per input URL** — either a success row or an error row, never
-both, never duplicated. Success rows carry `source`, `name`, location, `rating`,
+One row per input URL — either a success row or an error row, never both. URLs
+that point at the same property are scraped once; the run log says how many
+duplicates were skipped. Success rows carry `source`, `name`, location, `rating`,
 `reviewCount`, images, amenities, policies, house rules and per-unit details.
 Error rows carry `source`, `url`, `id`, and `error`.
 

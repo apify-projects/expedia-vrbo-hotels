@@ -11,7 +11,7 @@
  * retires the session so the retry lands a fresh IP.
  */
 import { Actor } from 'apify';
-import { BasicCrawler, type BasicCrawlingContext, log } from 'crawlee';
+import { BasicCrawler, type BasicCrawlingContext, log, Request } from 'crawlee';
 
 import { BlockedResponseError } from './errors.js';
 import { formatError } from './formatter.js';
@@ -94,12 +94,29 @@ const crawler = new BasicCrawler({
 
 const usableUrls: string[] = [];
 const invalidUrls: string[] = [];
+const seenKeys = new Set<string>();
+let duplicateCount = 0;
+
 for (const raw of urls) {
     const url = parseInputUrl(raw);
-    if (url === null) invalidUrls.push(raw);
-    else usableUrls.push(url);
+    if (url === null) {
+        invalidUrls.push(raw);
+        continue;
+    }
+    // Crawlee would collapse these into one request on its own; dropping them
+    // here keeps the reported counts honest.
+    const key = Request.computeUniqueKey({ url, method: 'GET' });
+    if (seenKeys.has(key)) {
+        duplicateCount += 1;
+        continue;
+    }
+    seenKeys.add(key);
+    usableUrls.push(url);
 }
 
+if (duplicateCount > 0) {
+    log.warning(`Skipping ${duplicateCount} duplicate URLs`);
+}
 if (invalidUrls.length > 0) {
     log.warning(`Skipping ${invalidUrls.length} of ${urls.length} inputs that are not valid URLs`);
     for (const raw of invalidUrls) {
