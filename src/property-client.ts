@@ -9,9 +9,10 @@
  */
 import { randomUUID } from 'node:crypto';
 
+import type { HttpCrawlingContext } from 'crawlee';
+
 import { getSignedHeaders } from './auth.js';
 import { BlockedResponseError, PropertyNotFoundError } from './errors.js';
-import type { HttpClient } from './http/http-client.js';
 import {
     PRODUCT_GALLERY_QUERY,
     PROPERTY_CONTENT_QUERY,
@@ -21,6 +22,12 @@ import {
 } from './queries.js';
 import { validatePropertyResponse } from './response-validation.js';
 import type { ExpediaSiteConfig, VrboSiteConfig } from './site-configs.js';
+
+/**
+ * Crawlee's `sendRequest` carries the crawling context's proxy URL and session,
+ * so every call a handler makes shares that request's sticky residential IP.
+ */
+export type SendRequest = HttpCrawlingContext['sendRequest'];
 
 interface AbacusOverride { bucket: number; id: string }
 
@@ -106,7 +113,7 @@ const baseSecondary = () => ({
 export interface PropertyClientOptions {
     profile: Profile;
     site: VrboSiteConfig | ExpediaSiteConfig;
-    http: HttpClient;
+    sendRequest: SendRequest;
     deviceId?: string;
 }
 
@@ -115,7 +122,7 @@ export class PropertyClient {
 
     private readonly site: VrboSiteConfig | ExpediaSiteConfig;
 
-    private readonly http: HttpClient;
+    private readonly sendRequest: SendRequest;
 
     private readonly deviceId: string;
 
@@ -124,7 +131,7 @@ export class PropertyClient {
     constructor(opts: PropertyClientOptions) {
         this.profile = opts.profile;
         this.site = opts.site;
-        this.http = opts.http;
+        this.sendRequest = opts.sendRequest;
         this.deviceId = opts.deviceId ?? randomUUID();
         this.endpoint = `${opts.site.baseUrl}/graphql`;
     }
@@ -167,24 +174,25 @@ export class PropertyClient {
     }
 
     private async postJson(payload: unknown, headers: Record<string, string>, propertyId: string): Promise<any> {
-        const resp = await this.http.fetch(this.endpoint, {
+        const response = await this.sendRequest({
+            url: this.endpoint,
             method: 'POST',
             headers,
             body: JSON.stringify(payload),
         });
-        const body = await resp.text();
-        if (resp.status === 403 || resp.status === 429) {
+        const { body, statusCode } = response;
+        if (statusCode === 403 || statusCode === 429) {
             // Hard block codes → BlockedResponseError so the caller retires the
             // session and the retry lands a fresh IP (ADR-0003, spike/RESULTS.md).
-            throw new BlockedResponseError(`HTTP ${resp.status} block from ${this.endpoint}`);
+            throw new BlockedResponseError(`HTTP ${statusCode} block from ${this.endpoint}`);
         }
-        if (resp.status >= 400) {
-            throw new Error(`HTTP ${resp.status}: ${body.slice(0, 500)}`);
+        if (statusCode >= 400) {
+            throw new Error(`HTTP ${statusCode}: ${body.slice(0, 500)}`);
         }
         const trimmed = (body ?? '').trim();
         if (!trimmed) {
             throw new BlockedResponseError(
-                `Empty body from ${this.endpoint} (HTTP ${resp.status}) — soft-block`,
+                `Empty body from ${this.endpoint} (HTTP ${statusCode}) — soft-block`,
             );
         }
         let data: any;
@@ -192,7 +200,7 @@ export class PropertyClient {
             data = JSON.parse(trimmed);
         } catch {
             throw new BlockedResponseError(
-                `Non-JSON body from ${this.endpoint} (HTTP ${resp.status}, ${body.length} bytes): ${trimmed.slice(0, 300)}`,
+                `Non-JSON body from ${this.endpoint} (HTTP ${statusCode}, ${body.length} bytes): ${trimmed.slice(0, 300)}`,
             );
         }
         if (Array.isArray(data.errors) && data.errors.length) {

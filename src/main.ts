@@ -1,23 +1,19 @@
 /**
  * Actor entry point.
  *
- * BasicCrawler owns the queue, concurrency, retries and session pool (ADR-0002,
- * ADR-0003); impit does the HTTP inside the handler. One Property URL → one
- * Terminal row:
- *   - requestHandler pushes SUCCESS rows only;
- *   - a single failedRequestHandler pushes ALL error rows.
- * One sticky residential IP per URL (SessionPool session → proxyConfiguration
- * .newUrl(session.id)); the 5 GraphQL calls share it. An empty-body soft-block
- * retires the session so the retry lands a fresh IP.
+ * One input URL becomes one queue entry, routed by Platform, producing exactly
+ * one dataset row: the routes push success rows, the failedRequestHandler pushes
+ * error rows. HttpCrawler owns the HTTP client, proxy, session pool and retries;
+ * handlers reach the GraphQL endpoint through `context.sendRequest`, so all of a
+ * property's calls share that request's sticky residential IP.
  */
+import { ImpitHttpClient } from '@crawlee/impit-client';
 import { Actor } from 'apify';
-import { BasicCrawler, type BasicCrawlingContext, log, Request } from 'crawlee';
+import { HttpCrawler, type HttpCrawlingContext, log, Request } from 'crawlee';
 
-import { BlockedResponseError } from './errors.js';
 import { formatError } from './formatter.js';
-import { ImpitHttpClient } from './http/impit-client.js';
-import type { ClientKind, ScrapeDeps } from './pipeline.js';
-import { scrapeProperty } from './pipeline.js';
+import { isResolvableUrl, MOBILE_BROWSER_UA } from './resolvers.js';
+import { buildPropertyRequest, LABELS, router } from './routes.js';
 import { detectPlatform, extractPropertyId, extractVrboPropertyId, type Platform } from './url-parser.js';
 
 interface ActorInput {
@@ -56,51 +52,15 @@ await Actor.init();
 
 const { urls } = await Actor.getInputOrThrow<ActorInput>();
 
-// Datacenter IPs are rejected
-const proxyConfiguration = await Actor.createProxyConfiguration({
-    groups: ['RESIDENTIAL'],
-    checkAccess: false,
-});
-
-const crawler = new BasicCrawler({
-    // Default request handler timeout (60s) is generous for 5 parallel GraphQL
-    // calls plus an optional HTML prefetch; raise it so slow proxies don't abort.
-    requestHandlerTimeoutSecs: 180,
-
-    async requestHandler({ request, session }: BasicCrawlingContext) {
-        // One sticky residential IP per URL: bind the upstream to this session.
-        const proxyUrl = await proxyConfiguration?.newUrl(session?.id);
-        const makeClient: ScrapeDeps['makeClient'] = (kind: ClientKind = 'graphql') =>
-            new ImpitHttpClient({ proxyUrl, browser: kind === 'html' ? 'chrome' : 'okhttp4' });
-
-        try {
-            const result = await scrapeProperty(request.url, { makeClient });
-            await Actor.pushData(result); // success rows only
-            log.info(`Scraped ${result.name} (${request.url})`);
-        } catch (err) {
-            // A soft-block (empty body) → retire the session so the retry rotates IP.
-            if (err instanceof BlockedResponseError) session?.retire();
-            throw err; // let Crawlee retry / route to failedRequestHandler
-        }
-    },
-
-    // Single source of every error row → preserves the one-row-per-URL invariant.
-    // Crawlee already logs the failure itself, so this only writes the row.
-    async failedRequestHandler({ request }: BasicCrawlingContext, error: Error) {
-        const { id, platform } = errorRowMeta(request.url);
-        await Actor.pushData(formatError(request.url, id, error.message, platform));
-    },
-});
-
-const usableUrls: string[] = [];
-const invalidUrls: string[] = [];
+const requests = [];
+const unusable: { raw: string; reason: string }[] = [];
 const seenKeys = new Set<string>();
 let duplicateCount = 0;
 
 for (const raw of urls) {
     const url = parseInputUrl(raw);
     if (url === null) {
-        invalidUrls.push(raw);
+        unusable.push({ raw, reason: 'Not a valid URL. Expected an absolute http(s) URL.' });
         continue;
     }
     // Crawlee would collapse these into one request on its own; dropping them
@@ -111,25 +71,60 @@ for (const raw of urls) {
         continue;
     }
     seenKeys.add(key);
-    usableUrls.push(url);
+
+    // A short link has to be followed before its Platform is known.
+    if (isResolvableUrl(url)) {
+        requests.push({ url, label: LABELS.SHORT_LINK, headers: { 'User-Agent': MOBILE_BROWSER_UA } });
+        continue;
+    }
+    // extractPropertyId distinguishes an unsupported domain from a supported one
+    // that is not a property page; detectPlatform would flatten both to null.
+    try {
+        const [, platform] = extractPropertyId(url);
+        requests.push(buildPropertyRequest(url, platform));
+    } catch (error) {
+        unusable.push({ raw, reason: (error as Error).message });
+    }
 }
 
 if (duplicateCount > 0) {
     log.warning(`Skipping ${duplicateCount} duplicate URLs`);
 }
-if (invalidUrls.length > 0) {
-    log.warning(`Skipping ${invalidUrls.length} of ${urls.length} inputs that are not valid URLs`);
-    for (const raw of invalidUrls) {
-        await Actor.pushData(formatError(raw, 'unknown', 'Not a valid URL. Expected an absolute http(s) URL.', null));
+if (unusable.length > 0) {
+    log.warning(`Skipping ${unusable.length} of ${urls.length} inputs that are not property URLs`);
+    for (const { raw, reason } of unusable) {
+        await Actor.pushData(formatError(raw, 'unknown', reason, null));
     }
 }
-if (usableUrls.length === 0) {
-    await Actor.fail(`None of the ${urls.length} input URLs are valid.`);
+if (requests.length === 0) {
+    await Actor.fail(`None of the ${urls.length} input URLs are usable.`);
 }
 
-log.info(`Processing ${usableUrls.length} URLs`);
+// The endpoint rejects datacenter IPs, so residential is not a user choice.
+const proxyConfiguration = await Actor.createProxyConfiguration({
+    groups: ['RESIDENTIAL'],
+    checkAccess: false,
+});
+
+const crawler = new HttpCrawler({
+    proxyConfiguration,
+    // The Mobile GraphQL API rejects default TLS fingerprints.
+    httpClient: new ImpitHttpClient({ browser: 'okhttp4', ignoreTlsErrors: true }),
+    requestHandler: router,
+    // Five parallel GraphQL calls plus an optional page fetch; the default 60s
+    // aborts slow proxies.
+    requestHandlerTimeoutSecs: 180,
+
+    // Single source of every error row → preserves the one-row-per-URL invariant.
+    // Crawlee already logs the failure itself, so this only writes the row.
+    async failedRequestHandler({ request }: HttpCrawlingContext, error: Error) {
+        const { id, platform } = errorRowMeta(request.url);
+        await Actor.pushData(formatError(request.url, id, error.message, platform));
+    },
+});
+
 // RequestQueue dedups by URL and persists handled requests across abort/migration,
-// so a resurrected run skips already-scraped Properties for free (ADR-0003).
-await crawler.run(usableUrls);
+// so a resurrected run skips already-scraped Properties for free.
+await crawler.run(requests);
 
 await Actor.exit();

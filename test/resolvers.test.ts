@@ -1,93 +1,77 @@
-import { describe, expect,it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { HotelsComDelistedError, PropertyNotFoundError } from '../src/errors.js';
 import {
-    convertHotelsComToExpedia,
+    assertHotelsComListed,
+    assertVrboDetailPage,
     extractExpediaIdFromUrl,
+    findDestinationUrl,
+    findExpediaIdInHtml,
+    findVrboPropertyId,
     isResolvableUrl,
-    resolveLegacyPropertyId,
-    resolveShortUrl,
+    needsIdResolution,
 } from '../src/resolvers.js';
-import { FakeHttp } from './fake-http.js';
 
-describe('resolveLegacyPropertyId', () => {
-    it("skips the fetch and returns the id for 'vb' (native VRBO) suffix", async () => {
-        const http = new FakeHttp(() => { throw new Error('should not fetch'); });
-        expect(await resolveLegacyPropertyId('https://www.vrbo.com/497962vb', '497962', 'vb', http)).toBe('497962');
-        expect(http.calls).toHaveLength(0);
-    });
-
-    it('resolves the internal id from the og:image lodging path', async () => {
-        const html = '<img src="https://media.vrbo.com/lodging/118000000/117900000/117899000/117898910/abc.jpg">';
-        const http = new FakeHttp(() => ({ text: html }));
-        expect(await resolveLegacyPropertyId('https://www.vrbo.com/11887139ha', '11887139', 'ha', http)).toBe('117898910');
-    });
-
-    it('resolves from the meta itemprop identifier', async () => {
-        const http = new FakeHttp(() => ({ text: '<meta itemprop="identifier" content="117898910"/>' }));
-        expect(await resolveLegacyPropertyId('https://www.vrbo.com/11887139ha', '11887139', 'ha', http)).toBe('117898910');
-    });
-
-    it('returns the original id when nothing matches', async () => {
-        const html = '<html>no ids</html>';
-        const http = new FakeHttp(() => ({ text: html, url: 'https://www.vrbo.com/en-gb/p4084796' }));
-        expect(await resolveLegacyPropertyId('https://www.vrbo.com/en-gb/p4084796', '4084796', '', http)).toBe('4084796');
-    });
-
+describe('needsIdResolution — which Vrbo URLs carry a legacy id', () => {
     it.each([
-        ['bare numeric', 'https://www.vrbo.com/117898910', '117898910', ''],
-        ['pdp/lo', 'https://www.vrbo.com/en-ca/pdp/lo/1489839', '1489839', ''],
-    ])('skips the fetch for %s urls — the id is already a Property ID', async (_label, url, id, suffix) => {
-        const http = new FakeHttp(() => { throw new Error('should not fetch'); });
-        expect(await resolveLegacyPropertyId(url, id, suffix, http)).toBe(id);
-        expect(http.calls).toHaveLength(0);
-    });
-
-    it('fetches for /p<id> urls, which do carry a legacy id', async () => {
-        const url = 'https://www.vrbo.com/en-gb/p11348801';
-        const http = new FakeHttp(() => ({ text: '<meta itemprop="identifier" content="96004977"/>', url }));
-        expect(await resolveLegacyPropertyId(url, '11348801', '', http)).toBe('96004977');
-        expect(http.calls).toHaveLength(1);
-    });
-
-    it('throws PropertyNotFoundError when Vrbo redirects to a non-detail page', async () => {
-        const http = new FakeHttp(() => ({
-            text: '<link rel="canonical" href="https://www.vrbo.com/tgp/vacation-rental/948522353206452224/santo-amaro"/>',
-            url: 'https://www.vrbo.com/tgp/vacation-rental/948522353206452224/santo-amaro',
-        }));
-        await expect(resolveLegacyPropertyId('https://www.vrbo.com/11887139ha', '11887139', 'ha', http))
-            .rejects.toBeInstanceOf(PropertyNotFoundError);
+        ['bare numeric', 'https://www.vrbo.com/117898910', '', false],
+        ['pdp/lo', 'https://www.vrbo.com/en-ca/pdp/lo/1489839', '', false],
+        ['native vb suffix', 'https://www.bookabach.co.nz/holiday-homes/p497962vb', 'vb', false],
+        ['ha suffix', 'https://www.vrbo.com/11887139ha', 'ha', true],
+        ['localized /p<id>', 'https://www.vrbo.com/en-gb/p11348801', '', true],
+        ['/p<id> with a letter', 'https://www.vrbo.com/nl-nl/vakantiewoning/p2093105a', 'a', true],
+    ])('%s -> %s', (_label, url, suffix, expected) => {
+        expect(needsIdResolution(url, suffix)).toBe(expected);
     });
 });
 
-describe('resolveShortUrl', () => {
-    it('returns non-short urls unchanged without fetching', async () => {
-        const http = new FakeHttp(() => { throw new Error('should not fetch'); });
-        const u = 'https://www.vrbo.com/117898910';
-        expect(await resolveShortUrl(u, http)).toBe(u);
-        expect(http.calls).toHaveLength(0);
+describe('findVrboPropertyId', () => {
+    it('resolves the internal id from the og:image lodging path', () => {
+        const html = '<img src="https://media.vrbo.com/lodging/118000000/117900000/117899000/117898910/abc.jpg">';
+        expect(findVrboPropertyId(html, '11887139')).toBe('117898910');
     });
 
-    it('follows a 307 Location to the final vrbo url', async () => {
-        const final = 'https://www.vrbo.com/117898910';
-        const http = new FakeHttp((url) => (url.includes('t.vrbo.io') ? { status: 307, headers: { Location: final } } : null));
-        expect(await resolveShortUrl('https://t.vrbo.io/abc', http)).toBe(final);
+    it('resolves from the meta itemprop identifier', () => {
+        expect(findVrboPropertyId('<meta itemprop="identifier" content="117898910"/>', '11887139')).toBe('117898910');
     });
 
-    it('follows an app.link intermediary, then on to vrbo', async () => {
-        const final = 'https://www.vrbo.com/117898910';
-        const http = new FakeHttp((url) => {
-            if (url.includes('t.vrbo.io')) return { status: 307, headers: { Location: 'https://a8ro.app.link/xyz' } };
-            if (url.includes('app.link')) return { status: 307, headers: { Location: final } };
-            return null;
-        });
-        expect(await resolveShortUrl('https://t.vrbo.io/abc', http)).toBe(final);
+    it('returns the original id when nothing matches', () => {
+        expect(findVrboPropertyId('<html>no ids</html>', '4084796')).toBe('4084796');
+    });
+});
+
+describe('assertVrboDetailPage', () => {
+    it('accepts a page that kept the requested id', () => {
+        expect(() => assertVrboDetailPage('https://www.vrbo.com/en-gb/p11348801', '11348801')).not.toThrow();
     });
 
-    it('extracts a vrbo url from browser_fallback_url in a 200 body', async () => {
+    it('rejects the homepage', () => {
+        expect(() => assertVrboDetailPage('https://www.vrbo.com/', '117898910')).toThrow(PropertyNotFoundError);
+    });
+
+    it('rejects an area search page', () => {
+        const landed = 'https://www.vrbo.com/tgp/vacation-rental/948522353206452224/santo-amaro';
+        expect(() => assertVrboDetailPage(landed, '11887139')).toThrow(PropertyNotFoundError);
+    });
+});
+
+describe('findDestinationUrl', () => {
+    it('uses the landing URL once redirects have been followed', () => {
+        expect(findDestinationUrl('https://www.vrbo.com/117898910', '')).toBe('https://www.vrbo.com/117898910');
+    });
+
+    it('reads browser_fallback_url out of a Branch.io interstitial', () => {
         const html = 'x browser_fallback_url=https%3A%2F%2Fwww.vrbo.com%2F117898910 y';
-        const http = new FakeHttp((url) => (url.includes('t.vrbo.io') ? { status: 200, text: html } : null));
-        expect(await resolveShortUrl('https://t.vrbo.io/abc', http)).toBe('https://www.vrbo.com/117898910');
+        expect(findDestinationUrl('https://t.vrbo.io/abc', html)).toBe('https://www.vrbo.com/117898910');
+    });
+
+    it('falls back to a property URL embedded in the page', () => {
+        const html = '<a href="https://www.vrbo.com/117898910">open</a>';
+        expect(findDestinationUrl('https://t.vrbo.io/abc', html)).toBe('https://www.vrbo.com/117898910');
+    });
+
+    it('returns null when the link goes nowhere useful', () => {
+        expect(findDestinationUrl('https://t.vrbo.io/abc', '<h1>That link could not be found</h1>')).toBeNull();
     });
 
     it('isResolvableUrl detects short/deep links', () => {
@@ -97,26 +81,34 @@ describe('resolveShortUrl', () => {
     });
 });
 
-describe('convertHotelsComToExpedia', () => {
-    it('cheap path: reads expediaPropertyId from the URL query (no fetch)', async () => {
-        const http = new FakeHttp(() => { throw new Error('should not fetch'); });
-        expect(await convertHotelsComToExpedia('https://www.hotels.com/ho1/x?expediaPropertyId=615323', http)).toBe('615323');
-        expect(http.calls).toHaveLength(0);
+describe('Hotels.com id conversion', () => {
+    it('cheap path: reads expediaPropertyId from the URL query', () => {
+        expect(extractExpediaIdFromUrl('https://www.hotels.com/ho1/x?expediaPropertyId=615323')).toBe('615323');
         expect(extractExpediaIdFromUrl('https://www.hotels.com/x?selected=42')).toBe('42');
+        expect(extractExpediaIdFromUrl('https://www.hotels.com/ho136900/x/')).toBeNull();
     });
 
-    it('extracts the id from the itemProp identifier meta', async () => {
-        const http = new FakeHttp(() => ({ text: '<meta itemProp="identifier" content="21856"/>', url: 'https://www.hotels.com/ho136900/x/' }));
-        expect(await convertHotelsComToExpedia('https://www.hotels.com/ho136900/x/', http)).toBe('21856');
+    it('extracts the id from the itemProp identifier meta', () => {
+        expect(findExpediaIdInHtml('<meta itemProp="identifier" content="21856"/>')).toBe('21856');
     });
 
-    it('picks the most frequent productId', async () => {
-        const http = new FakeHttp(() => ({ text: 'productId=111 productId=222 productId=222', url: 'https://www.hotels.com/ho136900/x/' }));
-        expect(await convertHotelsComToExpedia('https://www.hotels.com/ho136900/x/', http)).toBe('222');
+    it('picks the most frequent productId', () => {
+        expect(findExpediaIdInHtml('productId=111 productId=222 productId=222')).toBe('222');
     });
 
-    it('throws HotelsComDelistedError when the listing 301s away from /ho', async () => {
-        const http = new FakeHttp(() => ({ text: '<html>home</html>', url: 'https://www.hotels.com/' }));
-        await expect(convertHotelsComToExpedia('https://www.hotels.com/ho136900/x/', http)).rejects.toBeInstanceOf(HotelsComDelistedError);
+    it('returns null when the page carries no id', () => {
+        expect(findExpediaIdInHtml('<html>a real page, just no ids</html>')).toBeNull();
+    });
+
+    it('throws HotelsComDelistedError when the listing redirected away from /ho', () => {
+        expect(() => assertHotelsComListed('https://www.hotels.com/ho136900/x/', 'https://www.hotels.com/'))
+            .toThrow(HotelsComDelistedError);
+    });
+
+    it('accepts a landing URL that kept /ho<id>', () => {
+        expect(() => assertHotelsComListed(
+            'https://www.hotels.com/ho118568/',
+            'https://www.hotels.com/ho118568/holiday-inn-express/',
+        )).not.toThrow();
     });
 });

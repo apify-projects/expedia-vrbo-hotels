@@ -19,6 +19,7 @@
         "test:smoke": "SMOKE=1 vitest run test/smoke.test.ts"
     },
     "dependencies": {
+        "@crawlee/impit-client": "3.17.0",
         "apify": "^3.7.2",
         "cheerio": "^1.2.0",
         "crawlee": "^3.17.0",
