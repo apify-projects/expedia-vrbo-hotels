@@ -1,0 +1,24 @@
+name: CI
+
+on:
+    pull_request:
+    push:
+        branches: [main, master]
+
+jobs:
+    build-and-test:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v7
+            - uses: actions/setup-node@v7
+              with:
+                  # Matches the Dockerfile's apify/actor-node:22.
+                  node-version: 22
+                  cache: npm
+            - run: npm ci
+            - run: npm run lint
+            - run: npm run typecheck
+            - run: npm run format:check
+            - run: npm run build
+            # The live smoke test skips itself without SMOKE + a proxy password.
+            - run: npm test
