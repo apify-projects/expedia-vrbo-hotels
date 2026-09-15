@@ -1,5 +1,5 @@
 /**
- * Regional Site configurations for VRBO and Expedia/Hotels.com.
+ * Regional Site configurations for Vrbo and Expedia/Hotels.com.
  *
  * Insertion order matters: detection matches on substrings, so a shorter domain
  * listed first would shadow a longer one that contains it.
@@ -116,7 +116,7 @@ function hostOf(url: string): string | null {
     }
 }
 
-/** Detect VRBO site key from URL domain (substring match, insertion order). */
+/** Detect Vrbo site key from URL domain (substring match, insertion order). */
 export function detectVrboSite(url: string): string | null {
     const host = hostOf(url)?.replace('www.', '');
     if (host == null) return null;

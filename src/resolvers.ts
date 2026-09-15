@@ -1,7 +1,7 @@
 /**
  * Pure parsing for the pages the crawler fetches on the way to a Property ID:
  *  - short links (t.vrbo.io) and Branch.io deep links -> the final property URL;
- *  - a legacy HomeAway page -> the internal VRBO Property ID;
+ *  - a legacy HomeAway page -> the internal Vrbo Property ID;
  *  - a Hotels.com page -> the Expedia Property ID.
  *
  * Both id readers start from `og:image`, whose path carries the id of the
@@ -127,7 +127,7 @@ export function assertVrboDetailPage(loadedUrl: string, propertyId: string): voi
     }
 }
 
-/** The internal VRBO Property ID from a legacy listing page; the input id if absent. */
+/** The internal Vrbo Property ID from a legacy listing page; the input id if absent. */
 export function findVrboPropertyId($: CheerioAPI, propertyId: string): string {
     const fromImage = idFromOgImage($) ?? idFromLodgingPath($('img[src*="/lodging/"]').first().attr('src'));
     if (fromImage && fromImage !== propertyId) return fromImage;

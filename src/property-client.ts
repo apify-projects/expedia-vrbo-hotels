@@ -1,5 +1,5 @@
 /**
- * GraphQL client for the Expedia Group Mobile API, covering both the VRBO and
+ * GraphQL client for the Expedia Group Mobile API, covering both the Vrbo and
  * Expedia/Hotels.com app identities. Faithful port of `clients/vrbo_client.py`
  * and `clients/expedia_client.py` (which were near-identical apart from the app
  * identity headers/context). The two are unified here behind a `Profile`.
@@ -34,7 +34,7 @@ interface AbacusOverride {
     id: string;
 }
 
-/** App-identity constants that differ between the VRBO app and the Expedia app. */
+/** App-identity constants that differ between the Vrbo app and the Expedia app. */
 export interface Profile {
     userAgent: string;
     clientInfoHeader: string;

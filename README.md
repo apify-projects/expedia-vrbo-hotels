@@ -1,6 +1,6 @@
-# VRBO, Expedia & Hotels.com Scraper
+# Expedia, Vrbo & Hotels.com Property Scraper
 
-Unified scraper for **VRBO**, **Expedia**, and **Hotels.com** property details. It
+Unified scraper for **Expedia**, **Vrbo**, and **Hotels.com** property details. It
 talks to the Expedia Group **Mobile GraphQL API** (impersonating the Android app)
 rather than rendering web pages, and auto-detects the platform from each URL.
 
@@ -8,7 +8,7 @@ rather than rendering web pages, and auto-detects the platform from each URL.
 
 | Field  | Type     | Description                                                                               |
 | ------ | -------- | ----------------------------------------------------------------------------------------- |
-| `urls` | string[] | Property URLs from VRBO, Expedia, or Hotels.com. Platform is auto-detected. **Required.** |
+| `urls` | string[] | Property URLs from Expedia, Vrbo, or Hotels.com. Platform is auto-detected. **Required.** |
 
 ```json
 {
@@ -27,7 +27,7 @@ number mostly just raises the block rate.
 
 ### Supported URL formats
 
-- **VRBO**: numeric (`/1234567`), legacy HomeAway (`/11887139ha`), localized
+- **Vrbo**: numeric (`/1234567`), legacy HomeAway (`/11887139ha`), localized
   (`/en-gb/p11348801`, `/en-ca/pdp/lo/1489839`), regional sites
   (`bookabach.co.nz`, `stayz.com.au`, …), and short links (`t.vrbo.io/…`).
 - **Expedia**: `…​.h12345.Hotel-Information` across international domains.

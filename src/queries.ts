@@ -1,5 +1,5 @@
 /**
- * GraphQL queries extracted from the VRBO/Expedia Android apps.
+ * GraphQL queries extracted from the Vrbo/Expedia Android apps.
  *
  * The bodies must stay byte-identical to what the app sends, so do not hand-edit
  * or reformat them; re-extract from the APK if they ever change. Excluded from

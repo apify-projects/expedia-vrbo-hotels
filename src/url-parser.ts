@@ -1,5 +1,5 @@
 /**
- * URL parsing and platform detection for Expedia, Hotels.com, and VRBO.
+ * URL parsing and platform detection for Expedia, Hotels.com, and Vrbo.
  *
  * The regexes and the order they are tried in are load-bearing: several URL
  * shapes match more than one pattern, so reordering the branches changes which id
@@ -24,7 +24,7 @@ export function numericId(id: string): string {
 }
 
 /**
- * Extract [propertyId, platform] from an Expedia/Hotels.com/VRBO URL.
+ * Extract [propertyId, platform] from an Expedia/Hotels.com/Vrbo URL.
  * Throws URLParseError if the URL/domain is unsupported.
  */
 export function extractPropertyId(url: string): [string, Platform] {
@@ -92,7 +92,7 @@ export function detectPlatform(url: string): Platform | null {
 }
 
 /**
- * Extract [numericId, suffix] from a VRBO URL across its many formats.
+ * Extract [numericId, suffix] from a Vrbo URL across its many formats.
  * Returns [null, null] when nothing matches. suffix is one of 'ha'|'vb'|'a'|''.
  * Faithful port of vrbo_client.extract_property_id_from_url.
  */

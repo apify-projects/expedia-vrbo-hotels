@@ -464,12 +464,12 @@ function extractCategorizedAmenitiesFromSummary(
 function extractDetailedAmenities(contentData: any): AmenityCategory[] {
     let categories: AmenityCategory[] = [];
 
-    // Try detailedAmenitiesContent first (VRBO structure).
+    // Try detailedAmenitiesContent first (Vrbo structure).
     const detailed = safeGet(contentData, ['data', 'propertyInfo', 'detailedAmenitiesContent', 'amenities'], {});
     const sections = detailed.sections || [];
 
     if (pyTruthy(sections)) {
-        // VRBO structure: categories are in bodySubSections headers.
+        // Vrbo structure: categories are in bodySubSections headers.
         for (const section of asArray(sections)) {
             const bodySubs = section.bodySubSections || [];
             for (const sub of asArray(bodySubs)) {
