@@ -37,9 +37,10 @@ number mostly just raises the block rate.
 
 One row per input URL — either a success row or an error row, never both. URLs
 that point at the same property are scraped once; the run log says how many
-duplicates were skipped. Success rows carry `source`, `name`, location, `rating`,
+duplicates were skipped. Success rows carry `platform` (`vrbo`, `expedia` or
+`hotels.com`), `name`, location, `rating`,
 `reviewCount`, images, amenities, policies, house rules and per-unit details.
-Error rows carry `source`, `url`, `id`, and `error`.
+Error rows carry `platform`, `url`, `id`, and `error`.
 
 Prices are **not** available from this API — the offers response returns them as
 `null` at every date window we tested — so the output has no price fields.

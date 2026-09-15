@@ -137,20 +137,20 @@ describe('block detection → BlockedResponseError (retire session, rotate IP �
 });
 
 describe('formatError → one structured error row (story #7)', () => {
-    it('labels the platform the same way a success row does', () => {
-        expect(formatError('https://www.vrbo.com/x', '123', 'boom', 'vrbo').source).toBe('VRBO');
-        expect(formatError('https://www.expedia.co.uk/x', '1', 'boom', 'expedia').source).toBe('Expedia');
-        expect(formatError('https://www.hotels.com/x', '1', 'boom', 'hotels.com').source).toBe('Hotels.com');
+    it('reports the platform as its machine value', () => {
+        expect(formatError('https://www.vrbo.com/x', '123', 'boom', 'vrbo').platform).toBe('vrbo');
+        expect(formatError('https://www.expedia.co.uk/x', '1', 'boom', 'expedia').platform).toBe('expedia');
+        expect(formatError('https://www.hotels.com/x', '1', 'boom', 'hotels.com').platform).toBe('hotels.com');
     });
 
     it('uses null, not a placeholder, when the platform is undetectable', () => {
-        expect(formatError('https://www.booking.com/x', 'unknown', 'boom', null).source).toBeNull();
+        expect(formatError('https://www.booking.com/x', 'unknown', 'boom', null).platform).toBeNull();
     });
 
-    it('carries source, url, id, error + a scrapedAt timestamp', () => {
+    it('carries platform, url, id, error + a scrapedAt timestamp', () => {
         const row = formatError('https://www.vrbo.com/x', '123', 'boom', 'vrbo');
-        expect(row).toMatchObject({ source: 'VRBO', url: 'https://www.vrbo.com/x', id: '123', error: 'boom' });
+        expect(row).toMatchObject({ platform: 'vrbo', url: 'https://www.vrbo.com/x', id: '123', error: 'boom' });
         expect(typeof row.scrapedAt).toBe('string');
-        expect(Object.keys(row).sort()).toEqual(['error', 'id', 'scrapedAt', 'source', 'url']);
+        expect(Object.keys(row).sort()).toEqual(['error', 'id', 'platform', 'scrapedAt', 'url']);
     });
 });

@@ -6,6 +6,7 @@
  * Field names, ordering, and null-vs-absent semantics mirror the Python output
  * exactly so a downstream parity test can diff against the Python actor.
  */
+import type { Platform } from './url-parser.js';
 
 /** An image entry produced by `extract_images`. */
 export interface PropertyImage {
@@ -95,7 +96,7 @@ export interface PropertyUnit {
 
 /** The Terminal success row returned by `format_property`. */
 export interface PropertyResult {
-    source: string;
+    platform: Platform;
     url: string;
     id: string;
     name: string;
@@ -125,7 +126,7 @@ export interface PropertyResult {
 
 /** The Terminal error row returned by `format_error`. */
 export interface ErrorRow {
-    source: string | null;
+    platform: Platform | null;
     url: string;
     id: string;
     error: string;

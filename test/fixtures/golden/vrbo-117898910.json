@@ -3874,7 +3874,7 @@
     }
   },
   "expectedRow": {
-    "source": "VRBO",
+    "platform": "vrbo",
     "url": "https://www.vrbo.com/117898910",
     "id": "117898910",
     "name": "2BD Apt with Marina Views • Walk to Beach & Town",

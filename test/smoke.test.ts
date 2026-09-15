@@ -48,7 +48,7 @@ describe.skipIf(!enabled)('live smoke (opt-in: SMOKE=1)', () => {
         it(`scrapes a real ${c.platform} property`, async () => {
             const row = await scrapeLive(c.url, c.platform);
             expect(row.name?.length).toBeTruthy();
-            expect(row.source).toBeTruthy();
+            expect(row.platform).toBeTruthy();
             expect(row.id).toBeTruthy();
         }, 120_000);
     }

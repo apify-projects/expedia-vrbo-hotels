@@ -11058,7 +11058,7 @@
     }
   },
   "expectedRow": {
-    "source": "Hotels.com",
+    "platform": "hotels.com",
     "url": "https://www.hotels.com/ho136900/hilton-prague-old-town-prague-czech-republic/",
     "id": "21856",
     "name": "Hilton Prague Old Town",

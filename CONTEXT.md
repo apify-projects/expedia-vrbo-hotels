@@ -13,7 +13,7 @@ _Avoid_: listing, hotel, rental (use the generic Property).
 
 **Platform**:
 Which of the three brands a URL belongs to: `vrbo`, `expedia`, or `hotels.com`.
-Detected from the URL. Determines which client and ID scheme apply.
+Detected from the URL and reported as the `platform` field on every row.
 _Avoid_: source, brand.
 
 **Site**:

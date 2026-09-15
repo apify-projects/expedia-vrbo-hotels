@@ -24,7 +24,7 @@ import type {
     PropertyUnit,
     UnitImage,
 } from './types.js';
-import { type Platform, PLATFORM_LABEL_MAP } from './url-parser.js';
+import type { Platform } from './url-parser.js';
 
 // ---------------------------------------------------------------------------
 // Python-semantics helpers
@@ -1369,7 +1369,7 @@ export function formatProperty(args: {
     }
 
     return {
-        source: PLATFORM_LABEL_MAP[platform],
+        platform,
         url,
         id: propertyId,
         name,
@@ -1405,7 +1405,7 @@ export function formatError(
     platform: Platform | null,
 ): ErrorRow {
     return {
-        source: platform ? PLATFORM_LABEL_MAP[platform] : null,
+        platform,
         url,
         id: propertyId,
         error,
