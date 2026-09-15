@@ -3887,7 +3887,7 @@
     "city": "Lagos",
     "region": "Faro",
     "street": "Lagos, Faro",
-    "rating": 0.0,
+    "rating": null,
     "reviewCount": 0,
     "guestCount": 4,
     "bedroomCount": 2,

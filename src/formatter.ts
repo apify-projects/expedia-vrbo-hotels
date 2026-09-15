@@ -117,6 +117,12 @@ function pyCapitalize(s: string): string {
     return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 }
 
+/** A blank string from a partial API response means unknown, not "". */
+function nullIfBlank(value: any): string | null {
+    if (typeof value === 'string' && value.trim() === '') return null;
+    return value ?? null;
+}
+
 /** Current timestamp as an ISO-8601 UTC string (mirrors datetime.now(utc).isoformat()). */
 function nowIso(): string {
     return new Date().toISOString();
@@ -250,9 +256,12 @@ function extractRatingFromPageLayout(
     const aggregateRating = config ? findAggregateRating(config) : null;
 
     if (pyTruthy(aggregateRating)) {
-        // Extract from aggregateRating (primary source).
+        // bestRating "0" means the property has no rating yet, not that it scored 0.
+        const bestRating = 'bestRating' in aggregateRating ? pyFloat(aggregateRating.bestRating) : 10;
+        const hasRatingScale = bestRating !== null && bestRating > 0;
+
         const ratingStr = aggregateRating.ratingValue;
-        if (pyTruthy(ratingStr) && ratingStr !== 'null') {
+        if (hasRatingScale && pyTruthy(ratingStr) && ratingStr !== 'null') {
             const v = pyFloat(ratingStr);
             if (v !== null) ratingValue = v;
         }
@@ -1597,10 +1606,10 @@ export function formatProperty(args: {
         thumbnail,
         latitude: coordinates.latitude ?? null,
         longitude: coordinates.longitude ?? null,
-        country: address.countryCode ?? null,
-        city: address.city ?? null,
-        region: (address.province || parentRegion.name) ?? null,
-        street: address.addressLine ?? null,
+        country: nullIfBlank(address.countryCode),
+        city: nullIfBlank(address.city),
+        region: nullIfBlank(address.province || parentRegion.name),
+        street: nullIfBlank(address.addressLine),
         rating,
         reviewCount,
         guestCount: roomSetup.guestCount,
