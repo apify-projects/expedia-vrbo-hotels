@@ -10,7 +10,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { getSignedHeaders } from './auth.js';
-import { BlockedResponseError } from './errors.js';
+import { BlockedResponseError, PropertyNotFoundError } from './errors.js';
 import type { HttpClient } from './http/http-client.js';
 import {
     PRODUCT_GALLERY_QUERY,
@@ -32,8 +32,6 @@ export interface Profile {
     appIdentifier: string;
     contextClientInfo: { name: string; version: string };
     abacusOverrides: AbacusOverride[];
-    /** VRBO validates the summary response (reject wrong/blank); Expedia does not. */
-    validateSummary: boolean;
 }
 
 export function makeVrboProfile(): Profile {
@@ -49,7 +47,6 @@ export function makeVrboProfile(): Profile {
             { bucket: 1, id: '31491' },
             { bucket: 1, id: '31619' },
         ],
-        validateSummary: true,
     };
 }
 
@@ -62,7 +59,6 @@ export function makeExpediaProfile(site: ExpediaSiteConfig): Profile {
         appIdentifier: site.appName.replace('android.', ''),
         contextClientInfo: { name: site.appName, version: appVersion },
         abacusOverrides: [],
-        validateSummary: false,
     };
 }
 
@@ -164,7 +160,7 @@ export class PropertyClient {
         };
     }
 
-    private async postJson(payload: unknown, headers: Record<string, string>): Promise<any> {
+    private async postJson(payload: unknown, headers: Record<string, string>, propertyId: string): Promise<any> {
         const resp = await this.http.fetch(this.endpoint, {
             method: 'POST',
             headers,
@@ -194,7 +190,10 @@ export class PropertyClient {
             );
         }
         if (Array.isArray(data.errors) && data.errors.length) {
-            const msgs = data.errors.map((e: any) => e?.message ?? JSON.stringify(e)).join('; ');
+            const msgs = data.errors.map((error: any) => error?.message ?? JSON.stringify(error)).join('; ');
+            if (/Failed to retrieve (?:Property|Hotel Summary)/.test(msgs)) {
+                throw new PropertyNotFoundError(`Property ${propertyId} not found`);
+            }
             throw new Error(`GraphQL errors: ${msgs}`);
         }
         return data;
@@ -214,10 +213,11 @@ export class PropertyClient {
             },
             query: PROPERTY_SUMMARY_QUERY,
         };
-        const data = await this.postJson(payload, this.headers('PropertySummary', 'PropertySummary'));
-        if (this.profile.validateSummary) {
-            const { valid, reason } = validatePropertyResponse(data, formatted);
-            if (!valid) throw new Error(`Property validation failed for ${formatted}: ${reason}`);
+        const data = await this.postJson(payload, this.headers('PropertySummary', 'PropertySummary'), formatted);
+        const result = validatePropertyResponse(data, formatted);
+        if (!result.valid) {
+            if (result.kind === 'not-found') throw new PropertyNotFoundError(`Property ${formatted} not found`);
+            throw new Error(`Property validation failed for ${formatted}: ${result.reason}`);
         }
         return data;
     }
@@ -237,7 +237,7 @@ export class PropertyClient {
             },
             query: PROPERTY_CONTENT_QUERY,
         };
-        return this.postJson(payload, this.headers('PropertyContent', 'PropertyContent'));
+        return this.postJson(payload, this.headers('PropertyContent', 'PropertyContent'), formatted);
     }
 
     async fetchProductGallery(propertyId: string): Promise<any> {
@@ -250,7 +250,7 @@ export class PropertyClient {
             },
             query: PRODUCT_GALLERY_QUERY,
         };
-        return this.postJson(payload, this.headers('ProductGallery', 'ProductGallery'));
+        return this.postJson(payload, this.headers('ProductGallery', 'ProductGallery'), formatted);
     }
 
     async fetchPropertyOffers(propertyId: string): Promise<any> {
@@ -272,7 +272,7 @@ export class PropertyClient {
             },
             query: PROPERTY_OFFERS_WITH_UNITS_QUERY,
         };
-        return this.postJson(payload, this.headers('PropertyOffers', 'PropertyOffers'));
+        return this.postJson(payload, this.headers('PropertyOffers', 'PropertyOffers'), formatted);
     }
 
     async fetchPageLayout(propertyId: string): Promise<any> {
@@ -295,6 +295,6 @@ export class PropertyClient {
             },
             query: TEMPLATE_PAGE_LAYOUT_QUERY,
         };
-        return this.postJson(payload, this.headers('TemplatePageLayout', 'TemplatePageLayout'));
+        return this.postJson(payload, this.headers('TemplatePageLayout', 'TemplatePageLayout'), formatted);
     }
 }

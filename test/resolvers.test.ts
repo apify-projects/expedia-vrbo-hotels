@@ -1,6 +1,6 @@
 import { describe, expect,it } from 'vitest';
 
-import { HotelsComDelistedError } from '../src/errors.js';
+import { HotelsComDelistedError, PropertyNotFoundError } from '../src/errors.js';
 import {
     convertHotelsComToExpedia,
     extractExpediaIdFromUrl,
@@ -29,13 +29,34 @@ describe('resolveLegacyPropertyId', () => {
     });
 
     it('returns the original id when nothing matches', async () => {
-        const http = new FakeHttp(() => ({ text: '<html>no ids</html>' }));
-        expect(await resolveLegacyPropertyId('https://www.vrbo.com/4084796', '4084796', '', http)).toBe('4084796');
+        const html = '<html>no ids</html>';
+        const http = new FakeHttp(() => ({ text: html, url: 'https://www.vrbo.com/en-gb/p4084796' }));
+        expect(await resolveLegacyPropertyId('https://www.vrbo.com/en-gb/p4084796', '4084796', '', http)).toBe('4084796');
     });
 
-    it('returns the original id on a fetch error', async () => {
-        const http = new FakeHttp(() => { throw new Error('network'); });
-        expect(await resolveLegacyPropertyId('https://www.vrbo.com/4084796', '4084796', '', http)).toBe('4084796');
+    it.each([
+        ['bare numeric', 'https://www.vrbo.com/117898910', '117898910', ''],
+        ['pdp/lo', 'https://www.vrbo.com/en-ca/pdp/lo/1489839', '1489839', ''],
+    ])('skips the fetch for %s urls — the id is already a Property ID', async (_label, url, id, suffix) => {
+        const http = new FakeHttp(() => { throw new Error('should not fetch'); });
+        expect(await resolveLegacyPropertyId(url, id, suffix, http)).toBe(id);
+        expect(http.calls).toHaveLength(0);
+    });
+
+    it('fetches for /p<id> urls, which do carry a legacy id', async () => {
+        const url = 'https://www.vrbo.com/en-gb/p11348801';
+        const http = new FakeHttp(() => ({ text: '<meta itemprop="identifier" content="96004977"/>', url }));
+        expect(await resolveLegacyPropertyId(url, '11348801', '', http)).toBe('96004977');
+        expect(http.calls).toHaveLength(1);
+    });
+
+    it('throws PropertyNotFoundError when Vrbo redirects to a non-detail page', async () => {
+        const http = new FakeHttp(() => ({
+            text: '<link rel="canonical" href="https://www.vrbo.com/tgp/vacation-rental/948522353206452224/santo-amaro"/>',
+            url: 'https://www.vrbo.com/tgp/vacation-rental/948522353206452224/santo-amaro',
+        }));
+        await expect(resolveLegacyPropertyId('https://www.vrbo.com/11887139ha', '11887139', 'ha', http))
+            .rejects.toBeInstanceOf(PropertyNotFoundError);
     });
 });
 

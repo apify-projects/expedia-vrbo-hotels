@@ -7,10 +7,14 @@
  * silent success with name=null). Also catches an endpoint returning a different
  * property than requested.
  */
-export interface ValidationResult {
-    valid: boolean;
-    reason: string;
-}
+
+/**
+ * `not-found` means the id is dead (deterministic, don't retry); `wrong-property`
+ * means the endpoint answered about someone else (an anomaly, worth a retry).
+ */
+export type ValidationResult =
+    | { valid: true; reason: string }
+    | { valid: false; reason: string; kind: 'not-found' | 'wrong-property' };
 
 export function validatePropertyResponse(responseData: any, expectedId: string): ValidationResult {
     const summary = responseData?.data?.propertyInfo?.summary ?? {};
@@ -20,6 +24,7 @@ export function validatePropertyResponse(responseData: any, expectedId: string):
     if (!(responseName && String(responseName).trim())) {
         return {
             valid: false,
+            kind: 'not-found',
             reason: `Empty response - no property name returned for ID ${responseId || expectedId}`,
         };
     }
@@ -30,6 +35,7 @@ export function validatePropertyResponse(responseData: any, expectedId: string):
     if (responseNum && expectedNum !== responseNum) {
         return {
             valid: false,
+            kind: 'wrong-property',
             reason: `Wrong property: requested ${expectedId}, got ${responseId} ('${responseName}')`,
         };
     }

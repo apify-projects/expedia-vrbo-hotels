@@ -18,7 +18,7 @@
  */
 import * as cheerio from 'cheerio';
 
-import { BlockedResponseError, HotelsComDelistedError } from './errors.js';
+import { BlockedResponseError, HotelsComDelistedError, PropertyNotFoundError } from './errors.js';
 import type { HttpClient } from './http/http-client.js';
 import { VRBO_SITE_CONFIGS } from './site-configs.js';
 
@@ -113,6 +113,11 @@ export async function resolveShortUrl(url: string, http: HttpClient): Promise<st
     return url;
 }
 
+/** Only `/p<id>` paths and the `ha` suffix carry legacy ids the API rejects. */
+function needsIdResolution(url: string, suffix: string): boolean {
+    return suffix === 'ha' || /\/p\d+/i.test(url);
+}
+
 /**
  * Resolve a legacy HomeAway property id to the internal VRBO Property ID by
  * reading the listing page. 'vb' (native VRBO) ids need no resolution.
@@ -124,38 +129,43 @@ export async function resolveLegacyPropertyId(
     http: HttpClient,
 ): Promise<string> {
     if (suffix === 'vb') return propertyId;
+    // Bare numeric and /pdp/lo/ urls already carry a Property ID; fetching their
+    // page just downloads the Vrbo homepage.
+    if (!needsIdResolution(url, suffix)) return propertyId;
 
-    try {
-        const fetchUrl = url.startsWith('http') ? url : `https://www.vrbo.com/${propertyId}${suffix}`;
-        const resp = await http.fetch(fetchUrl, { method: 'GET', redirect: 'follow', headers: HOMEAWAY_HTML_HEADERS });
-        const html = await resp.text();
+    const fetchUrl = url.startsWith('http') ? url : `https://www.vrbo.com/${propertyId}${suffix}`;
+    const resp = await http.fetch(fetchUrl, { method: 'GET', redirect: 'follow', headers: HOMEAWAY_HTML_HEADERS });
+    const html = await resp.text();
 
-        // 1. og:image lodging path: /lodging/118000000/117900000/117899000/117898910/image.jpg
-        let m = /\/lodging\/\d+\/\d+\/\d+\/(\d+)\//.exec(html);
-        if (m && m[1] !== propertyId) return m[1];
-
-        const $ = cheerio.load(html);
-
-        // 2. <meta itemprop="identifier" content="..."> (either attribute order)
-        const metaId = $('meta[itemprop="identifier"]').attr('content');
-        if (metaId && /^\d+$/.test(metaId)) return metaId;
-
-        // 3. "propertyId":"117898910" in embedded JSON
-        m = /"propertyId"\s*:\s*"(\d+)"/.exec(html);
-        if (m && m[1] !== propertyId) return m[1];
-
-        // 4. data-property-id="117898910"
-        const dataId = $('[data-property-id]').attr('data-property-id');
-        if (dataId && /^\d+$/.test(dataId) && dataId !== propertyId) return dataId;
-
-        // 5. canonical / og:url href ending in a different id
-        m = /(?:canonical|og:url)[^>]*href=["'][^"']*?\/(\d+)(?:["']|[?/])/.exec(html);
-        if (m && m[1] !== propertyId && m[1].length >= 6) return m[1];
-
-        return propertyId;
-    } catch {
-        return propertyId;
+    // Vrbo sends a dead listing to the homepage or an area search page. Ids
+    // scraped off those belong to a region, not to this property.
+    if (!resp.url.includes(propertyId)) {
+        throw new PropertyNotFoundError(`Vrbo listing ${propertyId} no longer exists`);
     }
+
+    // 1. og:image lodging path: /lodging/118000000/117900000/117899000/117898910/image.jpg
+    let m = /\/lodging\/\d+\/\d+\/\d+\/(\d+)\//.exec(html);
+    if (m && m[1] !== propertyId) return m[1];
+
+    const $ = cheerio.load(html);
+
+    // 2. <meta itemprop="identifier" content="..."> (either attribute order)
+    const metaId = $('meta[itemprop="identifier"]').attr('content');
+    if (metaId && /^\d+$/.test(metaId)) return metaId;
+
+    // 3. "propertyId":"117898910" in embedded JSON
+    m = /"propertyId"\s*:\s*"(\d+)"/.exec(html);
+    if (m && m[1] !== propertyId) return m[1];
+
+    // 4. data-property-id="117898910"
+    const dataId = $('[data-property-id]').attr('data-property-id');
+    if (dataId && /^\d+$/.test(dataId) && dataId !== propertyId) return dataId;
+
+    // 5. canonical / og:url href ending in a different id
+    m = /(?:canonical|og:url)[^>]*href=["'][^"']*?\/(\d+)(?:["']|[?/])/.exec(html);
+    if (m && m[1] !== propertyId && m[1].length >= 6) return m[1];
+
+    return propertyId;
 }
 
 /** Most frequent item; ties resolve to the first-seen value (matches Counter.most_common). */
