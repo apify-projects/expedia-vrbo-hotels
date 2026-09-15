@@ -1,10 +1,14 @@
 /**
  * Domain error types.
  *
- * Both extend Crawlee's NonRetryableError so a terminal failure (unsupported URL,
- * delisted Hotels.com listing) fails fast — Crawlee will not waste retries — and
- * lands in the single failedRequestHandler that emits the one error row
- * (PRD user story #9, ADR-0003).
+ * The input-level ones extend Crawlee's NonRetryableError so a terminal failure
+ * (unsupported URL, delisted listing, dead property id) fails fast instead of
+ * burning retries, and lands in the single failedRequestHandler that emits the
+ * one error row.
+ *
+ * They also overwrite `stack` with just their message: Crawlee logs error.stack
+ * verbatim, and these report bad input rather than a crash, so the internal
+ * frames are noise in the run log.
  */
 import { NonRetryableError } from 'crawlee';
 
@@ -13,6 +17,7 @@ export class URLParseError extends NonRetryableError {
     constructor(message: string) {
         super(message);
         this.name = 'URLParseError';
+        this.stack = `${this.name}: ${message}`;
     }
 }
 
@@ -25,6 +30,7 @@ export class HotelsComDelistedError extends NonRetryableError {
     constructor(message: string) {
         super(message);
         this.name = 'HotelsComDelistedError';
+        this.stack = `${this.name}: ${message}`;
     }
 }
 
@@ -37,6 +43,7 @@ export class PropertyNotFoundError extends NonRetryableError {
     constructor(message: string) {
         super(message);
         this.name = 'PropertyNotFoundError';
+        this.stack = `${this.name}: ${message}`;
     }
 }
 

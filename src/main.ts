@@ -60,7 +60,7 @@ const crawler = new BasicCrawler({
         try {
             const result = await scrapeProperty(request.url, { makeClient });
             await Actor.pushData(result); // success rows only
-            log.info(`Success: ${result.name || `Property ${result.id}`}`);
+            log.info(`Scraped ${result.name} (${request.url})`);
         } catch (err) {
             // A soft-block (empty body) → retire the session so the retry rotates IP.
             if (err instanceof BlockedResponseError) session?.retire();
@@ -68,19 +68,17 @@ const crawler = new BasicCrawler({
         }
     },
 
+    // Single source of every error row → preserves the one-row-per-URL invariant.
+    // Crawlee already logs the failure itself, so this only writes the row.
     async failedRequestHandler({ request }: BasicCrawlingContext, error: Error) {
-        // Single source of every error row → preserves the one-row-per-URL invariant.
         const { id, platform } = errorRowMeta(request.url);
-        const message = error?.message ?? String(error);
-        await Actor.pushData(formatError(request.url, id, message, platform));
-        log.error(`Failed: ${request.url} — ${message}`);
+        await Actor.pushData(formatError(request.url, id, error.message, platform));
     },
 });
 
 log.info(`Processing ${urls.length} URLs`);
 // RequestQueue dedups by URL and persists handled requests across abort/migration,
 // so a resurrected run skips already-scraped Properties for free (ADR-0003).
-await crawler.addRequests(urls.map((url) => ({ url })));
-await crawler.run();
+await crawler.run(urls);
 
 await Actor.exit();
