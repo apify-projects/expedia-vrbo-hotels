@@ -23,7 +23,8 @@ export const MOBILE_BROWSER_UA =
     'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36';
 
 export const HOMEAWAY_HTML_HEADERS = {
-    'User-Agent': 'HomeAway/2025.47.0 Dalvik/2.1.0 (Linux; U; Android 13; Generic Android-x86_64 Build/TQ3A.230901.001.C1)',
+    'User-Agent':
+        'HomeAway/2025.47.0 Dalvik/2.1.0 (Linux; U; Android 13; Generic Android-x86_64 Build/TQ3A.230901.001.C1)',
     Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.9',
     'Accept-Encoding': 'gzip, deflate',
@@ -172,8 +173,8 @@ export function assertHotelsComListed(requestUrl: string, loadedUrl: string): vo
     if (/\/ho\d+/.test(pathOf(loadedUrl))) return;
 
     throw new HotelsComDelistedError(
-        `Hotels.com no longer lists this property (ID ${requested[0].replace(/^[/ho]+/, '')}); `
-        + `${requestUrl} redirected to ${loadedUrl}`,
+        `Hotels.com no longer lists this property (ID ${requested[0].replace(/^[/ho]+/, '')}); ` +
+            `${requestUrl} redirected to ${loadedUrl}`,
     );
 }
 
@@ -221,7 +222,11 @@ export function findExpediaIdInHtml(html: string): string | null {
     if (matches.length) return matches[0][1];
 
     // meta name/property property-id.
-    matches = [...html.matchAll(/<meta[^>]*(?:name|property)=["'](?:expedia:)?property[_-]?id["'][^>]*content=["'](\d+)["']/gi)];
+    matches = [
+        ...html.matchAll(
+            /<meta[^>]*(?:name|property)=["'](?:expedia:)?property[_-]?id["'][^>]*content=["'](\d+)["']/gi,
+        ),
+    ];
     if (matches.length) return matches[0][1];
 
     // hotelId / propertyId / property_id → most common.

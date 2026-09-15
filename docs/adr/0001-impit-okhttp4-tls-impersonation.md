@@ -13,7 +13,7 @@ body and proxy constant and varying only the TLS fingerprint, 12 signed
 `PropertySummary` requests through residential gave: impit `okhttp4` **11/12**
 (the one miss a proxy-590 tunnel error, not a block) vs the `tls_client`
 `okhttp4_android_13` baseline **12/12**; impit `chrome` was **0/12** (429). So
-impit's okhttp4 target is accepted at ≈baseline. It is an okhttp-*family*
+impit's okhttp4 target is accepted at ≈baseline. It is an okhttp-_family_
 fingerprint (JA4 differs from the exact `okhttp4_android_13`), so **pin the impit
 version** — an upgrade re-opens this gate — and keep the `node-tls-client`
 fallback documented below. Full evidence: `spike/RESULTS.md`.
@@ -23,14 +23,14 @@ fallback documented below. Full evidence: `spike/RESULTS.md`.
 Six signed `PropertySummary` requests per fingerprint, against both endpoints
 from a single IP:
 
-| fingerprint | expedia.com/graphql | vrbo.com/graphql |
-| --- | --- | --- |
-| `okhttp4` | 6/6 | 6/6 |
-| `chrome` | 6/6 | 6/6 |
-| `firefox` | 6/6 | 6/6 |
-| impit default (no `browser`) | 0/6, all 429 | 0/6, all 429 |
+| fingerprint                  | expedia.com/graphql | vrbo.com/graphql |
+| ---------------------------- | ------------------- | ---------------- |
+| `okhttp4`                    | 6/6                 | 6/6              |
+| `chrome`                     | 6/6                 | 6/6              |
+| `firefox`                    | 6/6                 | 6/6              |
+| impit default (no `browser`) | 0/6, all 429        | 0/6, all 429     |
 
-So the binding constraint looks like "present *a* recognised TLS fingerprint",
+So the binding constraint looks like "present _a_ recognised TLS fingerprint",
 not "present okhttp4 specifically" — impit's bare default is what gets blocked.
 
 This is one IP at one moment, against the spike's twelve fresh residential IPs,

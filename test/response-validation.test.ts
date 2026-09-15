@@ -1,4 +1,4 @@
-import { describe, expect,it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { validatePropertyResponse } from '../src/response-validation.js';
 
@@ -6,7 +6,10 @@ const ok = (id: string, name: string) => ({ data: { propertyInfo: { summary: { i
 
 describe('validatePropertyResponse', () => {
     it('accepts a matching id with a real name', () => {
-        expect(validatePropertyResponse(ok('525006', 'Hotel PULSE8'), '525006')).toEqual({ valid: true, reason: 'Valid' });
+        expect(validatePropertyResponse(ok('525006', 'Hotel PULSE8'), '525006')).toEqual({
+            valid: true,
+            reason: 'Valid',
+        });
     });
 
     it('accepts when ids match ignoring suffix', () => {

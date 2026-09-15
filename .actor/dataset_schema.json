@@ -1,25 +1,25 @@
 {
-  "$schema": "https://apify.com/schemas/v1/dataset.ide.json",
-  "actorSpecification": 1,
-  "fields": {},
-  "views": {
-    "overview": {
-      "title": "Overview",
-      "transformation": {
-        "fields": ["name", "platform", "city", "country", "rating", "reviewCount", "url"]
-      },
-      "display": {
-        "component": "table",
-        "properties": {
-          "name": { "label": "Property", "format": "text" },
-          "platform": { "label": "Platform", "format": "text" },
-          "city": { "label": "City", "format": "text" },
-          "country": { "label": "Country", "format": "text" },
-          "rating": { "label": "Rating", "format": "number" },
-          "reviewCount": { "label": "Reviews", "format": "number" },
-          "url": { "label": "URL", "format": "link" }
+    "$schema": "https://apify.com/schemas/v1/dataset.ide.json",
+    "actorSpecification": 1,
+    "fields": {},
+    "views": {
+        "overview": {
+            "title": "Overview",
+            "transformation": {
+                "fields": ["name", "platform", "city", "country", "rating", "reviewCount", "url"]
+            },
+            "display": {
+                "component": "table",
+                "properties": {
+                    "name": { "label": "Property", "format": "text" },
+                    "platform": { "label": "Platform", "format": "text" },
+                    "city": { "label": "City", "format": "text" },
+                    "country": { "label": "Country", "format": "text" },
+                    "rating": { "label": "Rating", "format": "number" },
+                    "reviewCount": { "label": "Reviews", "format": "number" },
+                    "url": { "label": "URL", "format": "link" }
+                }
+            }
         }
-      }
     }
-  }
 }

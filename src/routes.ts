@@ -12,12 +12,7 @@ import { createHttpRouter, type HttpCrawlingContext } from 'crawlee';
 
 import { BlockedResponseError, URLParseError } from './errors.js';
 import { formatProperty } from './formatter.js';
-import {
-    makeExpediaProfile,
-    makeVrboProfile,
-    PropertyClient,
-    type SendRequest,
-} from './property-client.js';
+import { makeExpediaProfile, makeVrboProfile, PropertyClient, type SendRequest } from './property-client.js';
 import {
     assertHotelsComListed,
     assertVrboDetailPage,
@@ -65,7 +60,7 @@ function buildClient(platform: Platform, url: string, sendRequest: SendRequest):
     if (platform === 'vrbo') {
         return new PropertyClient({ profile: makeVrboProfile(), site: VRBO_SITE_CONFIGS['vrbo.com'], sendRequest });
     }
-    const siteKey = platform === 'expedia' ? detectExpediaSite(url) ?? 'expedia.com' : 'expedia.com';
+    const siteKey = platform === 'expedia' ? (detectExpediaSite(url) ?? 'expedia.com') : 'expedia.com';
     const site = EXPEDIA_SITE_CONFIGS[siteKey];
     return new PropertyClient({ profile: makeExpediaProfile(site), site, sendRequest });
 }
@@ -80,7 +75,16 @@ export async function scrapeProperty({ url, platform, propertyId, sendRequest }:
         client.fetchPropertyOffers(propertyId),
         platform === 'vrbo' ? client.fetchPageLayout(propertyId) : null,
     ]);
-    return formatProperty({ summaryData, contentData, url, propertyId, platform, galleryData, offersData, pageLayoutData });
+    return formatProperty({
+        summaryData,
+        contentData,
+        url,
+        propertyId,
+        platform,
+        galleryData,
+        offersData,
+        pageLayoutData,
+    });
 }
 
 /** A 200 with nothing in it is this target's soft-block shape. */
@@ -150,9 +154,10 @@ async function pushRow(row: PropertyResult, url: string, log: HttpCrawlingContex
  * otherwise make.
  */
 export function buildPropertyRequest(url: string, platform: Platform) {
-    const needsPage = platform === 'hotels.com'
-        ? extractExpediaIdFromUrl(url) === null
-        : platform === 'vrbo' && needsIdResolution(url, extractVrboPropertyId(url)[1] ?? '');
+    const needsPage =
+        platform === 'hotels.com'
+            ? extractExpediaIdFromUrl(url) === null
+            : platform === 'vrbo' && needsIdResolution(url, extractVrboPropertyId(url)[1] ?? '');
 
     return {
         url,

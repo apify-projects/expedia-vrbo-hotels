@@ -15,13 +15,14 @@ storage/key_value_stores/default/INPUT.json
 ```
 
 Example input:
+
 ```json
 {
-  "urls": [
-    "https://www.vrbo.com/1234567",
-    "https://www.expedia.com/Hotel.h12345.Hotel-Information",
-    "https://www.hotels.com/ho12345/hotel-name/"
-  ]
+    "urls": [
+        "https://www.vrbo.com/1234567",
+        "https://www.expedia.com/Hotel.h12345.Hotel-Information",
+        "https://www.hotels.com/ho12345/hotel-name/"
+    ]
 }
 ```
 
@@ -35,6 +36,7 @@ python3 -m src.main
 ### Output
 
 Results are saved to:
+
 ```
 storage/datasets/default/*.json
 ```
@@ -48,6 +50,7 @@ storage/datasets/default/*.json
 The actor uses `tls_client` library with `okhttp4_android_13` fingerprint to match Android's TLS signature. This is **critical** - standard HTTP libraries like `requests` or `httpx` will be blocked.
 
 **Key files:**
+
 - `src/clients/vrbo_client.py` - Uses `tls_client.Session(client_identifier="okhttp4_android_13")`
 - `src/hotels_com_converter.py` - Uses `curl_cffi` with `chrome120` impersonation
 
@@ -64,6 +67,7 @@ HMAC_SECRET_KEY = "S1q3f5rhAe3SCE4N"  # Deobfuscated from XOR ^ 28 + reverse
 ```
 
 Headers required for every request:
+
 - `authorization` - HMAC signature
 - `x-date` - RFC 1123 timestamp
 - `salt` - Random 16-char alphanumeric string
@@ -75,6 +79,7 @@ Queries were extracted from the VRBO Android APK via jadx decompilation. They ar
 **File:** `src/queries/vrbo_queries.py`
 
 Key queries:
+
 - `PROPERTY_CONTENT_QUERY` - Property details, amenities, policies
 - `PROPERTY_SUMMARY_QUERY` - Name, location, coordinates, reviews
 - `PRODUCT_GALLERY_QUERY` - Property images
@@ -86,6 +91,7 @@ Key queries:
 **Critical Issue:** Legacy HomeAway URLs use a different ID system. The GraphQL API **rejects** these IDs - it only accepts internal numeric IDs.
 
 This affects:
+
 - URLs with `ha` suffix: `/11887139ha`
 - Localized URLs without suffix: `/en-gb/p11887139` (still legacy IDs!)
 
@@ -94,6 +100,7 @@ This affects:
 **File:** `src/clients/vrbo_client.py` - `resolve_legacy_property_id()`
 
 Resolution methods (in order of reliability):
+
 1. Image URLs: `/lodging/118000000/117900000/117899000/117898910/image.jpg`
 2. Meta tags: `<meta itemprop="identifier" content="117898910">`
 3. JSON data: `"propertyId":"117898910"`
@@ -116,12 +123,14 @@ Short URLs like `https://t.vrbo.io/bN81iIoI3Wb` require multi-hop redirect follo
 ### 6. Hotels.com ID Conversion
 
 Hotels.com uses different property IDs than Expedia. The actor must:
+
 1. Fetch the Hotels.com page HTML
 2. Extract the Expedia property ID from embedded JavaScript
 
 **File:** `src/hotels_com_converter.py`
 
 Extraction patterns:
+
 - `expediaPropertyId` in JavaScript
 - JSON-LD structured data
 - `data-property-id` attributes
@@ -147,12 +156,13 @@ SITE_CONFIGS = {
 Reviews come from multiple sources with different reliability:
 
 **Primary:** `TemplatePageLayout` → `seoStructuredData` → `aggregateRating`
+
 ```json
 {
-  "@type": "AggregateRating",
-  "ratingValue": "9.0",
-  "reviewCount": "626",
-  "bestRating": "10"
+    "@type": "AggregateRating",
+    "ratingValue": "9.0",
+    "reviewCount": "626",
+    "bestRating": "10"
 }
 ```
 
@@ -180,40 +190,43 @@ The actor validates that returned data matches the requested property ID (some e
 ## Supported URL Formats
 
 ### VRBO
-| Format | Example |
-|--------|---------|
-| Standard numeric | `https://www.vrbo.com/1234567` |
-| Legacy HomeAway (ha suffix) | `https://www.vrbo.com/11887139ha` |
-| Localized pdp/lo | `https://www.vrbo.com/en-ca/pdp/lo/1489839` |
-| Localized with p prefix | `https://www.vrbo.com/en-gb/p11348801` |
-| Short URLs | `https://t.vrbo.io/bN81iIoI3Wb` |
-| Regional sites | `https://www.bookabach.co.nz/holiday-homes/p497962vb` |
+
+| Format                      | Example                                               |
+| --------------------------- | ----------------------------------------------------- |
+| Standard numeric            | `https://www.vrbo.com/1234567`                        |
+| Legacy HomeAway (ha suffix) | `https://www.vrbo.com/11887139ha`                     |
+| Localized pdp/lo            | `https://www.vrbo.com/en-ca/pdp/lo/1489839`           |
+| Localized with p prefix     | `https://www.vrbo.com/en-gb/p11348801`                |
+| Short URLs                  | `https://t.vrbo.io/bN81iIoI3Wb`                       |
+| Regional sites              | `https://www.bookabach.co.nz/holiday-homes/p497962vb` |
 
 ### Expedia
-| Format | Example |
-|--------|---------|
-| Standard | `https://www.expedia.com/Hotel-Name.h12345.Hotel-Information` |
-| International | `https://www.expedia.it/en/Hotel.h2692552.Hotel-Information` |
+
+| Format        | Example                                                       |
+| ------------- | ------------------------------------------------------------- |
+| Standard      | `https://www.expedia.com/Hotel-Name.h12345.Hotel-Information` |
+| International | `https://www.expedia.it/en/Hotel.h2692552.Hotel-Information`  |
 
 ### Hotels.com
-| Format | Example |
-|--------|---------|
+
+| Format   | Example                                       |
+| -------- | --------------------------------------------- |
 | Standard | `https://www.hotels.com/ho136900/hotel-name/` |
 
 ---
 
 ## Key Files Reference
 
-| File | Purpose |
-|------|---------|
-| `src/main.py` | Actor entry point, URL routing |
-| `src/clients/vrbo_client.py` | VRBO GraphQL client, URL resolution |
-| `src/clients/expedia_client.py` | Expedia GraphQL client |
-| `src/auth.py` | HMAC signing for API authentication |
-| `src/queries/vrbo_queries.py` | GraphQL queries from Android APK |
-| `src/formatters/vrbo_formatter.py` | Response data formatting |
-| `src/hotels_com_converter.py` | Hotels.com to Expedia ID conversion |
-| `src/url_parser.py` | URL parsing and platform detection |
+| File                               | Purpose                             |
+| ---------------------------------- | ----------------------------------- |
+| `src/main.py`                      | Actor entry point, URL routing      |
+| `src/clients/vrbo_client.py`       | VRBO GraphQL client, URL resolution |
+| `src/clients/expedia_client.py`    | Expedia GraphQL client              |
+| `src/auth.py`                      | HMAC signing for API authentication |
+| `src/queries/vrbo_queries.py`      | GraphQL queries from Android APK    |
+| `src/formatters/vrbo_formatter.py` | Response data formatting            |
+| `src/hotels_com_converter.py`      | Hotels.com to Expedia ID conversion |
+| `src/url_parser.py`                | URL parsing and platform detection  |
 
 ---
 
@@ -251,17 +264,21 @@ asyncio.run(test('https://www.vrbo.com/11887139ha'))
 ## Common Issues
 
 ### 1. "Invalid PropertyId" Error
+
 - Cause: Passing legacy HomeAway ID (with `ha` suffix) directly to API
 - Fix: Use `resolve_legacy_property_id()` first
 
 ### 2. Short URL Returns Original URL
+
 - Cause: Case-sensitive header handling in `tls_client`
 - Fix: Check both `response.headers.get("Location")` and `response.headers.get("location")`
 
 ### 3. Empty Reviews/Rating
+
 - Cause: Data not in `PropertySummary` response
 - Fix: Use `TemplatePageLayout` query which contains `seoStructuredData` with `aggregateRating`
 
 ### 4. Wrong Property Data Returned
+
 - Cause: Regional endpoints (bookabach.co.nz, etc.) return incorrect data for some IDs
 - Fix: Always use `vrbo.com` endpoint regardless of input URL domain

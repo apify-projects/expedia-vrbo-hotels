@@ -11,24 +11,29 @@ import { assertNonEmptyBody, scrapeProperty } from '../src/routes.js';
 import { EXPEDIA_SITE_CONFIGS } from '../src/site-configs.js';
 import { fakeSendRequest, type Route } from './fake-send-request.js';
 
-const summaryRoute = (name: string | null): Route => () => ({
-    body: JSON.stringify({ data: { propertyInfo: { summary: { id: '1', name } } } }),
-});
+const summaryRoute =
+    (name: string | null): Route =>
+    () => ({
+        body: JSON.stringify({ data: { propertyInfo: { summary: { id: '1', name } } } }),
+    });
 
-const client = (route: Route) => new PropertyClient({
-    profile: makeExpediaProfile(EXPEDIA_SITE_CONFIGS['expedia.com']),
-    site: EXPEDIA_SITE_CONFIGS['expedia.com'],
-    sendRequest: fakeSendRequest(route).send,
-});
+const client = (route: Route) =>
+    new PropertyClient({
+        profile: makeExpediaProfile(EXPEDIA_SITE_CONFIGS['expedia.com']),
+        site: EXPEDIA_SITE_CONFIGS['expedia.com'],
+        sendRequest: fakeSendRequest(route).send,
+    });
 
 describe('a blank-name response is a dead id on every platform', () => {
     it.each(['vrbo', 'expedia', 'hotels.com'] as const)('%s → PropertyNotFoundError', async (platform) => {
-        await expect(scrapeProperty({
-            url: 'https://www.example.com/x',
-            platform,
-            propertyId: '9999',
-            sendRequest: fakeSendRequest(summaryRoute('')).send,
-        })).rejects.toBeInstanceOf(PropertyNotFoundError);
+        await expect(
+            scrapeProperty({
+                url: 'https://www.example.com/x',
+                platform,
+                propertyId: '9999',
+                sendRequest: fakeSendRequest(summaryRoute('')).send,
+            }),
+        ).rejects.toBeInstanceOf(PropertyNotFoundError);
     });
 });
 
@@ -36,24 +41,36 @@ describe('dead property ids are not retried', () => {
     const gqlErrors = (...messages: string[]) => JSON.stringify({ errors: messages.map((message) => ({ message })) });
 
     it('"Failed to retrieve Property" → PropertyNotFoundError', async () => {
-        const route: Route = () => ({ body: gqlErrors('Exception while fetching data (/propertyInfo/summary) : Failed to retrieve Property. Property id=9999') });
+        const route: Route = () => ({
+            body: gqlErrors(
+                'Exception while fetching data (/propertyInfo/summary) : Failed to retrieve Property. Property id=9999',
+            ),
+        });
         await expect(client(route).fetchPropertySummary('9999')).rejects.toBeInstanceOf(PropertyNotFoundError);
     });
 
     it('"Failed to retrieve Hotel Summary" → PropertyNotFoundError', async () => {
-        const route: Route = () => ({ body: gqlErrors('Exception while fetching data (/propertyInfo/propertyDetails) : Failed to retrieve Hotel Summary. Hotel = 9999') });
+        const route: Route = () => ({
+            body: gqlErrors(
+                'Exception while fetching data (/propertyInfo/propertyDetails) : Failed to retrieve Hotel Summary. Hotel = 9999',
+            ),
+        });
         await expect(client(route).fetchPropertySummary('9999')).rejects.toBeInstanceOf(PropertyNotFoundError);
     });
 
     it('an unrelated GraphQL error stays retryable', async () => {
-        const route: Route = () => ({ body: gqlErrors('Upstream exception with statusCode=3 occurred while calling gRPC API') });
+        const route: Route = () => ({
+            body: gqlErrors('Upstream exception with statusCode=3 occurred while calling gRPC API'),
+        });
         const promise = client(route).fetchProductGallery('525006');
         await expect(promise).rejects.toThrow(/GraphQL errors/);
         await expect(promise).rejects.not.toBeInstanceOf(PropertyNotFoundError);
     });
 
     it('a wrong-property response stays retryable', async () => {
-        const route: Route = () => ({ body: JSON.stringify({ data: { propertyInfo: { summary: { id: '111', name: 'Someone Else' } } } }) });
+        const route: Route = () => ({
+            body: JSON.stringify({ data: { propertyInfo: { summary: { id: '111', name: 'Someone Else' } } } }),
+        });
         const promise = client(route).fetchPropertySummary('525006');
         await expect(promise).rejects.toThrow(/Wrong property/);
         await expect(promise).rejects.not.toBeInstanceOf(PropertyNotFoundError);
@@ -62,13 +79,15 @@ describe('dead property ids are not retried', () => {
 
 describe('block detection → BlockedResponseError, so the session rotates', () => {
     it.each([429, 403])('HTTP %i', async (statusCode) => {
-        await expect(client(() => ({ statusCode, body: '' })).fetchPropertySummary('525006'))
-            .rejects.toBeInstanceOf(BlockedResponseError);
+        await expect(client(() => ({ statusCode, body: '' })).fetchPropertySummary('525006')).rejects.toBeInstanceOf(
+            BlockedResponseError,
+        );
     });
 
     it('empty GraphQL body', async () => {
-        await expect(client(() => ({ body: '' })).fetchPropertySummary('525006'))
-            .rejects.toBeInstanceOf(BlockedResponseError);
+        await expect(client(() => ({ body: '' })).fetchPropertySummary('525006')).rejects.toBeInstanceOf(
+            BlockedResponseError,
+        );
     });
 
     it('empty page body from a navigated request', () => {

@@ -17,9 +17,17 @@ import type { Platform } from '../src/url-parser.js';
 const enabled = Boolean(process.env.SMOKE) && Boolean(process.env.APIFY_PROXY_PASSWORD);
 
 const cases: { platform: Platform; propertyId: string; url: string }[] = [
-    { platform: 'expedia', propertyId: '525006', url: 'https://www.expedia.com/Prague-Hotels-Pentahotel-Prague.h525006.Hotel-Information' },
+    {
+        platform: 'expedia',
+        propertyId: '525006',
+        url: 'https://www.expedia.com/Prague-Hotels-Pentahotel-Prague.h525006.Hotel-Information',
+    },
     { platform: 'vrbo', propertyId: '117898910', url: 'https://www.vrbo.com/117898910' },
-    { platform: 'hotels.com', propertyId: '21856', url: 'https://www.hotels.com/ho136900/hilton-prague-old-town-prague-czech-republic/' },
+    {
+        platform: 'hotels.com',
+        propertyId: '21856',
+        url: 'https://www.hotels.com/ho136900/hilton-prague-old-town-prague-czech-republic/',
+    },
 ];
 
 const client = new ImpitHttpClient({ browser: 'okhttp4', ignoreTlsErrors: true });
@@ -31,12 +39,13 @@ const client = new ImpitHttpClient({ browser: 'okhttp4', ignoreTlsErrors: true }
  */
 function sendVia(session: string): SendRequest {
     const proxyUrl = `http://groups-RESIDENTIAL,session-${session},country-US:${process.env.APIFY_PROXY_PASSWORD}@proxy.apify.com:8000`;
-    const send = (options: { url?: string } & Record<string, unknown> = {}) => client.sendRequest({
-        responseType: 'text',
-        ...options,
-        url: options.url ?? '',
-        proxyUrl,
-    });
+    const send = async (options: { url?: string } & Record<string, unknown> = {}) =>
+        client.sendRequest({
+            responseType: 'text',
+            ...options,
+            url: options.url ?? '',
+            proxyUrl,
+        });
     return send as unknown as SendRequest;
 }
 

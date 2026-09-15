@@ -79,10 +79,10 @@ export function buildAuthorizationHeader(
     const data = buildSigningData(method, path, query, date, salt);
     const signature = createHmacSignature(secretKey, data);
     return (
-        `hmac username="${username}",`
-        + `algorithm="hmac-sha256",`
-        + `headers="request-line x-date salt",`
-        + `signature="${signature}"`
+        `hmac username="${username}",` +
+        `algorithm="hmac-sha256",` +
+        `headers="request-line x-date salt",` +
+        `signature="${signature}"`
     );
 }
 

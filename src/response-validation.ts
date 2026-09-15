@@ -13,8 +13,7 @@
  * means the endpoint answered about someone else (an anomaly, worth a retry).
  */
 export type ValidationResult =
-    | { valid: true; reason: string }
-    | { valid: false; reason: string; kind: 'not-found' | 'wrong-property' };
+    { valid: true; reason: string } | { valid: false; reason: string; kind: 'not-found' | 'wrong-property' };
 
 export function validatePropertyResponse(responseData: any, expectedId: string): ValidationResult {
     const summary = responseData?.data?.propertyInfo?.summary ?? {};

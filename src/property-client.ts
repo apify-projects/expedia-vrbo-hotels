@@ -29,7 +29,10 @@ import type { ExpediaSiteConfig, VrboSiteConfig } from './site-configs.js';
  */
 export type SendRequest = HttpCrawlingContext['sendRequest'];
 
-interface AbacusOverride { bucket: number; id: string }
+interface AbacusOverride {
+    bucket: number;
+    id: string;
+}
 
 /** App-identity constants that differ between the VRBO app and the Expedia app. */
 export interface Profile {
@@ -58,7 +61,7 @@ export function makeVrboProfile(): Profile {
 }
 
 export function makeExpediaProfile(site: ExpediaSiteConfig): Profile {
-    const {appVersion} = site;
+    const { appVersion } = site;
     return {
         userAgent: `Expedia/${appVersion} Dalvik/2.1.0 (Linux; U; Android 13; Generic Android-x86_64 Build/TQ3A.230901.001.C1)`,
         clientInfoHeader: `${site.appName},${appVersion},external`,
@@ -147,9 +150,9 @@ export class PropertyClient {
             'client-info': this.profile.clientInfoHeader,
             'device-user-agent-id': this.deviceId,
             'x-eb-client':
-                `PLATFORM:ANDROID;OS_VERSION:13;MANUFACTURER:unknown;MODEL:Generic Android-x86_64;`
-                + `MODEL_NAME:Generic Android-x86_64;UPGRADE:false;APP_VERSION:${this.profile.appVersion};`
-                + `LOCALE:${locale};APP_IDENTIFIER:${this.profile.appIdentifier};`,
+                `PLATFORM:ANDROID;OS_VERSION:13;MANUFACTURER:unknown;MODEL:Generic Android-x86_64;` +
+                `MODEL_NAME:Generic Android-x86_64;UPGRADE:false;APP_VERSION:${this.profile.appVersion};` +
+                `LOCALE:${locale};APP_IDENTIFIER:${this.profile.appIdentifier};`,
             'x-apollo-operation-name': operationName,
             'x-apollo-operation-id': operationId,
             'x-mobvisid': randomUUID(),
@@ -191,9 +194,7 @@ export class PropertyClient {
         }
         const trimmed = (body ?? '').trim();
         if (!trimmed) {
-            throw new BlockedResponseError(
-                `Empty body from ${this.endpoint} (HTTP ${statusCode}) — soft-block`,
-            );
+            throw new BlockedResponseError(`Empty body from ${this.endpoint} (HTTP ${statusCode}) — soft-block`);
         }
         let data: any;
         try {
@@ -299,7 +300,10 @@ export class PropertyClient {
                     productLine: 'LODGING',
                     travelSearchCriteria: {
                         property: {
-                            primary: { destination: { mapBounds: [], regionName: '' }, rooms: [{ adults: 2, children: [] }] },
+                            primary: {
+                                destination: { mapBounds: [], regionName: '' },
+                                rooms: [{ adults: 2, children: [] }],
+                            },
                             secondary: baseSecondary(),
                         },
                     },

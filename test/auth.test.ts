@@ -1,4 +1,4 @@
-import { describe, expect,it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import {
     buildAuthorizationHeader,
@@ -18,25 +18,38 @@ const ORACLE = {
     secret: 'S1q3f5rhAe3SCE4N',
     cases: [
         {
-            method: 'POST', path: '/graphql', query: null,
-            date: 'Fri, 29 Nov 2024 12:34:56 GMT', salt: 'abc123DEF456ghij',
+            method: 'POST',
+            path: '/graphql',
+            query: null,
+            date: 'Fri, 29 Nov 2024 12:34:56 GMT',
+            salt: 'abc123DEF456ghij',
             signingData: 'POST /graphql HTTP/1.1\nx-date: Fri, 29 Nov 2024 12:34:56 GMT\nsalt: abc123DEF456ghij',
             signature: 'ZqdQFgwfWLl0sVcoorkssmRUiA1PxJ/iklNYCKX6T4M=',
-            authorization: 'hmac username="fe627e29-3afb-4384-9fc0-a1d2a4dcd30c",algorithm="hmac-sha256",headers="request-line x-date salt",signature="ZqdQFgwfWLl0sVcoorkssmRUiA1PxJ/iklNYCKX6T4M="',
+            authorization:
+                'hmac username="fe627e29-3afb-4384-9fc0-a1d2a4dcd30c",algorithm="hmac-sha256",headers="request-line x-date salt",signature="ZqdQFgwfWLl0sVcoorkssmRUiA1PxJ/iklNYCKX6T4M="',
         },
         {
-            method: 'POST', path: '/graphql', query: 'a=1&b=2',
-            date: 'Mon, 20 Jan 2025 00:00:00 GMT', salt: 'ZZZZ0000zzzz9999',
-            signingData: 'POST /graphql?a=1&b=2 HTTP/1.1\nx-date: Mon, 20 Jan 2025 00:00:00 GMT\nsalt: ZZZZ0000zzzz9999',
+            method: 'POST',
+            path: '/graphql',
+            query: 'a=1&b=2',
+            date: 'Mon, 20 Jan 2025 00:00:00 GMT',
+            salt: 'ZZZZ0000zzzz9999',
+            signingData:
+                'POST /graphql?a=1&b=2 HTTP/1.1\nx-date: Mon, 20 Jan 2025 00:00:00 GMT\nsalt: ZZZZ0000zzzz9999',
             signature: 'QA+5RrwYASphyxJG4ixUAk/NcIKoJB3Urenw2OOC4dc=',
-            authorization: 'hmac username="fe627e29-3afb-4384-9fc0-a1d2a4dcd30c",algorithm="hmac-sha256",headers="request-line x-date salt",signature="QA+5RrwYASphyxJG4ixUAk/NcIKoJB3Urenw2OOC4dc="',
+            authorization:
+                'hmac username="fe627e29-3afb-4384-9fc0-a1d2a4dcd30c",algorithm="hmac-sha256",headers="request-line x-date salt",signature="QA+5RrwYASphyxJG4ixUAk/NcIKoJB3Urenw2OOC4dc="',
         },
         {
-            method: 'GET', path: '/foo/bar', query: null,
-            date: 'Tue, 01 Apr 2025 23:59:59 GMT', salt: 'SaltSaltSaltSalt',
+            method: 'GET',
+            path: '/foo/bar',
+            query: null,
+            date: 'Tue, 01 Apr 2025 23:59:59 GMT',
+            salt: 'SaltSaltSaltSalt',
             signingData: 'GET /foo/bar HTTP/1.1\nx-date: Tue, 01 Apr 2025 23:59:59 GMT\nsalt: SaltSaltSaltSalt',
             signature: 'DkI1vFhckN6JQxV5XFSdTc6DXZfNNaS1ptq8u2/ubDY=',
-            authorization: 'hmac username="fe627e29-3afb-4384-9fc0-a1d2a4dcd30c",algorithm="hmac-sha256",headers="request-line x-date salt",signature="DkI1vFhckN6JQxV5XFSdTc6DXZfNNaS1ptq8u2/ubDY="',
+            authorization:
+                'hmac username="fe627e29-3afb-4384-9fc0-a1d2a4dcd30c",algorithm="hmac-sha256",headers="request-line x-date salt",signature="DkI1vFhckN6JQxV5XFSdTc6DXZfNNaS1ptq8u2/ubDY="',
         },
     ],
 };
@@ -68,9 +81,7 @@ describe('auth helpers', () => {
     });
 
     it('getRfc1123Date matches RFC 1123 GMT shape', () => {
-        expect(getRfc1123Date()).toMatch(
-            /^[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$/,
-        );
+        expect(getRfc1123Date()).toMatch(/^[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$/);
     });
 
     it('getSignedHeaders returns authorization, x-date, salt', () => {

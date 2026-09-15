@@ -50,7 +50,7 @@ export interface PolicySubSection {
 export interface PolicySection {
     /** section header text; may be null when absent. */
     title: string | null;
-    items: Array<string | PolicySubSection>;
+    items: (string | PolicySubSection)[];
 }
 
 /** Structured house rules from `extract_house_rules`. */

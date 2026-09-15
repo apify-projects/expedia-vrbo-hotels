@@ -6,17 +6,17 @@ rather than rendering web pages, and auto-detects the platform from each URL.
 
 ## Input
 
-| Field | Type | Description |
-|-------|------|-------------|
+| Field  | Type     | Description                                                                               |
+| ------ | -------- | ----------------------------------------------------------------------------------------- |
 | `urls` | string[] | Property URLs from VRBO, Expedia, or Hotels.com. Platform is auto-detected. **Required.** |
 
 ```json
 {
-  "urls": [
-    "https://www.vrbo.com/117898910",
-    "https://www.expedia.com/Prague-Hotels-Pentahotel-Prague.h525006.Hotel-Information",
-    "https://www.hotels.com/ho136900/hilton-prague-old-town-prague-czech-republic/"
-  ]
+    "urls": [
+        "https://www.vrbo.com/117898910",
+        "https://www.expedia.com/Prague-Hotels-Pentahotel-Prague.h525006.Hotel-Information",
+        "https://www.hotels.com/ho136900/hilton-prague-old-town-prague-czech-republic/"
+    ]
 }
 ```
 

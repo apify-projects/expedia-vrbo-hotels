@@ -51,12 +51,12 @@ export function extractPropertyId(url: string): [string, Platform] {
     }
 
     if (
-        domain.includes('vrbo')
-        || domain.includes('homeaway')
-        || domain.includes('abritel')
-        || domain.includes('fewo-direkt')
-        || domain.includes('bookabach')
-        || domain.includes('stayz')
+        domain.includes('vrbo') ||
+        domain.includes('homeaway') ||
+        domain.includes('abritel') ||
+        domain.includes('fewo-direkt') ||
+        domain.includes('bookabach') ||
+        domain.includes('stayz')
     ) {
         let m = /\/rental\/(\d+)/.exec(url);
         if (m) return [m[1], 'vrbo'];

@@ -1,20 +1,16 @@
 {
-  "title": "VRBO, Expedia & Hotels.com Scraper Input",
-  "type": "object",
-  "schemaVersion": 1,
-  "properties": {
-    "urls": {
-      "title": "Property URLs",
-      "type": "array",
-      "description": "List of property URLs from VRBO, Expedia, or Hotels.com. Platform is auto-detected from URL.",
-      "editor": "stringList",
-      "prefill": [
-        "https://www.expedia.com/Prague-Hotels-Pentahotel-Prague.h525006.Hotel-Information"
-      ],
-      "minItems": 1
-    }
-  },
-  "required": [
-    "urls"
-  ]
+    "title": "VRBO, Expedia & Hotels.com Scraper Input",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+        "urls": {
+            "title": "Property URLs",
+            "type": "array",
+            "description": "List of property URLs from VRBO, Expedia, or Hotels.com. Platform is auto-detected from URL.",
+            "editor": "stringList",
+            "prefill": ["https://www.expedia.com/Prague-Hotels-Pentahotel-Prague.h525006.Hotel-Information"],
+            "minItems": 1
+        }
+    },
+    "required": ["urls"]
 }

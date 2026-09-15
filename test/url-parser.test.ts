@@ -1,18 +1,20 @@
-import { describe, expect,it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { URLParseError } from '../src/errors.js';
-import {
-    detectPlatform,
-    extractPropertyId,
-    extractVrboPropertyId,
-    numericId,
-    validateUrl,
-} from '../src/url-parser.js';
+import { detectPlatform, extractPropertyId, extractVrboPropertyId, numericId, validateUrl } from '../src/url-parser.js';
 
 describe('extractPropertyId — generic (ported example cases)', () => {
     it.each([
-        ['https://www.expedia.com/Prague-Hotels-Pentahotel-Prague.h525006.Hotel-Information?chkin=2023-03-17', '525006', 'expedia'],
-        ['https://www.expedia.it/en/Berchtesgaden-Hotels-Alpensport-Hotel-Seimler.h2692552.Hotel-Information', '2692552', 'expedia'],
+        [
+            'https://www.expedia.com/Prague-Hotels-Pentahotel-Prague.h525006.Hotel-Information?chkin=2023-03-17',
+            '525006',
+            'expedia',
+        ],
+        [
+            'https://www.expedia.it/en/Berchtesgaden-Hotels-Alpensport-Hotel-Seimler.h2692552.Hotel-Information',
+            '2692552',
+            'expedia',
+        ],
         ['https://www.expedia.com/Prague-Hotels-Hotel-Krystal.h10966026.Hotel-Information', '10966026', 'expedia'],
         ['https://www.hotels.com/ho136900/hilton-prague-old-town-prague-czech-republic/', '136900', 'hotels.com'],
         ['https://www.vrbo.com/1234567', '1234567', 'vrbo'],

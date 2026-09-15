@@ -1,16 +1,16 @@
 {
-  "$schema": "https://apify.com/schemas/v1/actor.ide.json",
-  "actorSpecification": 1,
-  "name": "vrbo-expedia-hotels-scraper",
-  "title": "VRBO, Expedia & Hotels.com Scraper",
-  "description": "Unified scraper for VRBO, Expedia, and Hotels.com property details. Auto-detects platform from URL and returns consistent output schema.",
-  "version": "1.0",
-  "buildTag": "latest",
-  "inputSchema": "./input_schema.json",
-  "outputSchema": "./output_schema.json",
-  "storages": {
-    "dataset": "./dataset_schema.json"
-  },
-  "dockerfile": "../Dockerfile",
-  "readme": "../README.md"
+    "$schema": "https://apify.com/schemas/v1/actor.ide.json",
+    "actorSpecification": 1,
+    "name": "vrbo-expedia-hotels-scraper",
+    "title": "VRBO, Expedia & Hotels.com Scraper",
+    "description": "Unified scraper for VRBO, Expedia, and Hotels.com property details. Auto-detects platform from URL and returns consistent output schema.",
+    "version": "1.0",
+    "buildTag": "latest",
+    "inputSchema": "./input_schema.json",
+    "outputSchema": "./output_schema.json",
+    "storages": {
+        "dataset": "./dataset_schema.json"
+    },
+    "dockerfile": "../Dockerfile",
+    "readme": "../README.md"
 }

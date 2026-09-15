@@ -101,14 +101,17 @@ describe('Hotels.com id conversion', () => {
     });
 
     it('throws HotelsComDelistedError when the listing redirected away from /ho', () => {
-        expect(() => assertHotelsComListed('https://www.hotels.com/ho136900/x/', 'https://www.hotels.com/'))
-            .toThrow(HotelsComDelistedError);
+        expect(() => assertHotelsComListed('https://www.hotels.com/ho136900/x/', 'https://www.hotels.com/')).toThrow(
+            HotelsComDelistedError,
+        );
     });
 
     it('accepts a landing URL that kept /ho<id>', () => {
-        expect(() => assertHotelsComListed(
-            'https://www.hotels.com/ho118568/',
-            'https://www.hotels.com/ho118568/holiday-inn-express/',
-        )).not.toThrow();
+        expect(() =>
+            assertHotelsComListed(
+                'https://www.hotels.com/ho118568/',
+                'https://www.hotels.com/ho118568/holiday-inn-express/',
+            ),
+        ).not.toThrow();
     });
 });

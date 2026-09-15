@@ -128,7 +128,7 @@ function nowIso(): string {
  * Faithful port of `safe_get`: navigate nested dict/list, returning `default`
  * on a type mismatch or a None encountered along the way.
  */
-function safeGet(data: any, keys: Array<string | number>, defaultValue: any = null): any {
+function safeGet(data: any, keys: (string | number)[], defaultValue: any = null): any {
     let result: any = data;
     for (const key of keys) {
         if (isDict(result)) {
@@ -161,7 +161,9 @@ function extractTextItems(items: any): string[] {
             const text = safeGet(item, ['content', 'text']);
             if (pyTruthy(text)) {
                 // Strip HTML tags
-                let cleanText = String(text).replace(/<[^>]+>/g, ' ').trim();
+                let cleanText = String(text)
+                    .replace(/<[^>]+>/g, ' ')
+                    .trim();
                 cleanText = cleanText.replace(/\s+/g, ' ');
                 texts.push(cleanText);
             }
@@ -194,9 +196,7 @@ function extractTextItems(items: any): string[] {
  *
  * Returns [ratingValue, reviewCount].
  */
-function extractRatingFromPageLayout(
-    pageLayoutData: any,
-): [number | null, number | null] {
+function extractRatingFromPageLayout(pageLayoutData: any): [number | null, number | null] {
     if (!pyTruthy(pageLayoutData)) {
         return [null, null];
     }
@@ -385,11 +385,7 @@ function extractDescription(contentData: any): string {
 function extractAmenitiesSummary(contentData: any): HighlightedAmenity[] {
     const amenitiesList: HighlightedAmenity[] = [];
 
-    const amenities = safeGet(
-        contentData,
-        ['data', 'propertyInfo', 'amenitiesSummary', 'amenities'],
-        {},
-    );
+    const amenities = safeGet(contentData, ['data', 'propertyInfo', 'amenitiesSummary', 'amenities'], {});
     const sections = amenities.sections || [];
 
     for (const section of asArray(sections)) {
@@ -429,11 +425,7 @@ function extractCategorizedAmenitiesFromSummary(
 ): AmenityCategory[] {
     const categories: AmenityCategory[] = [];
 
-    const summary = safeGet(
-        contentData,
-        ['data', 'propertyInfo', 'amenitiesSummary', 'amenities'],
-        {},
-    );
+    const summary = safeGet(contentData, ['data', 'propertyInfo', 'amenitiesSummary', 'amenities'], {});
     const sections = summary.sections || [];
 
     for (const section of asArray(sections)) {
@@ -474,11 +466,7 @@ function extractDetailedAmenities(contentData: any): AmenityCategory[] {
     let categories: AmenityCategory[] = [];
 
     // Try detailedAmenitiesContent first (VRBO structure).
-    const detailed = safeGet(
-        contentData,
-        ['data', 'propertyInfo', 'detailedAmenitiesContent', 'amenities'],
-        {},
-    );
+    const detailed = safeGet(contentData, ['data', 'propertyInfo', 'detailedAmenitiesContent', 'amenities'], {});
     const sections = detailed.sections || [];
 
     if (pyTruthy(sections)) {
@@ -536,11 +524,7 @@ const ROOM_AMENITY_CATEGORIES = new Set<string>([
 /** Extract room-level amenities when no 'Room amenities' section exists. */
 function extractRoomAmenitiesFallback(contentData: any): AmenityCategory[] {
     // Try detailedAmenitiesContent first.
-    const detailed = safeGet(
-        contentData,
-        ['data', 'propertyInfo', 'detailedAmenitiesContent', 'amenities'],
-        {},
-    );
+    const detailed = safeGet(contentData, ['data', 'propertyInfo', 'detailedAmenitiesContent', 'amenities'], {});
     const sections = detailed.sections || [];
 
     const categories: AmenityCategory[] = [];
@@ -575,11 +559,7 @@ function extractRoomAmenitiesFallback(contentData: any): AmenityCategory[] {
     }
 
     // Fallback: filter room-level categories from "Property amenities" in amenitiesSummary.
-    const summary = safeGet(
-        contentData,
-        ['data', 'propertyInfo', 'amenitiesSummary', 'amenities'],
-        {},
-    );
+    const summary = safeGet(contentData, ['data', 'propertyInfo', 'amenitiesSummary', 'amenities'], {});
     for (const section of asArray(summary.sections)) {
         const bodySubs = section.bodySubSections || [];
         for (const sub of asArray(bodySubs)) {
@@ -613,18 +593,14 @@ function extractRoomAmenitiesFallback(contentData: any): AmenityCategory[] {
 function extractPolicies(contentData: any): PolicySection[] {
     const policiesList: PolicySection[] = [];
 
-    const policies = safeGet(
-        contentData,
-        ['data', 'propertyInfo', 'propertyContentSectionGroups', 'policies'],
-        {},
-    );
+    const policies = safeGet(contentData, ['data', 'propertyInfo', 'propertyContentSectionGroups', 'policies'], {});
     const sections = policies.sections || [];
 
     for (const section of asArray(sections)) {
         const sectionHeader = section.header || {};
         const sectionTitle = sectionHeader.text ?? null;
 
-        const items: Array<string | PolicySubSection> = [];
+        const items: (string | PolicySubSection)[] = [];
         const bodySubs = section.bodySubSections || [];
 
         for (const sub of asArray(bodySubs)) {
@@ -633,7 +609,7 @@ function extractPolicies(contentData: any): PolicySection[] {
                 for (const element of asArray(elemGroup.elements)) {
                     // Get subsection header.
                     const header = element.header || {};
-                    const subTitle = pyTruthy(header) ? header.text ?? null : null;
+                    const subTitle = pyTruthy(header) ? (header.text ?? null) : null;
                     const iconId = pyTruthy(header) ? safeGet(header, ['icon', 'id']) : null;
 
                     // Get items.
@@ -703,11 +679,11 @@ function extractBedTypes(features: any): BedType[] {
     const seen = new Set<string>();
 
     for (const feature of asArray(features)) {
-        const text = isDict(feature) ? feature.text ?? '' : String(feature);
+        const text = isDict(feature) ? (feature.text ?? '') : String(feature);
         // Fresh regex per text to reset lastIndex (global flag).
         const pattern = new RegExp(BED_TYPE_PATTERN.source, 'gi');
         let match: RegExpExecArray | null;
-         
+
         while ((match = pattern.exec(String(text))) !== null) {
             const count = Number.parseInt(match[1], 10);
             let bedType = pyCapitalize(match[2]);
@@ -737,20 +713,16 @@ function extractReviewCount(summaryData: any): number | null {
     const countPattern = /(\d+)\s*(?:review|rating)/i;
 
     // Try PropertySummary reviewSummary (the only reliable source).
-    const reviewSummary = safeGet(
-        summaryData,
-        ['data', 'propertyInfo', 'propertyDetails', 'reviewSummary'],
-        {},
-    );
+    const reviewSummary = safeGet(summaryData, ['data', 'propertyInfo', 'propertyDetails', 'reviewSummary'], {});
     if (pyTruthy(reviewSummary)) {
         // Check totalCount (nested structure with raw/formatted).
-        const {totalCount} = reviewSummary;
+        const { totalCount } = reviewSummary;
         if (isDict(totalCount)) {
-            const {raw} = totalCount;
+            const { raw } = totalCount;
             if (typeof raw === 'number' && raw > 0) {
                 return Math.trunc(raw);
             }
-            const {formatted} = totalCount;
+            const { formatted } = totalCount;
             if (typeof formatted === 'string') {
                 const v = pyIntStrict(formatted.replace(/,/g, ''));
                 if (v !== null && v > 0) {
@@ -806,7 +778,7 @@ function extractRoomSetup(features: any): {
     const bathroomPattern = /(\d+)\+?\s*bathroom/i;
 
     for (const feature of asArray(features)) {
-        const text = isDict(feature) ? feature.text ?? '' : String(feature);
+        const text = isDict(feature) ? (feature.text ?? '') : String(feature);
 
         if (result.guestCount === null) {
             const match = sleepsPattern.exec(text);
@@ -843,20 +815,16 @@ function extractHouseRules(policies: any): HouseRules {
         eventsAllowed: null,
     };
 
-    const checkinPattern =
-        /[Cc]heck[- ]?in[:\s]+(?:after\s+)?(\d{1,2}(?::\d{2})?\s*(?:[AaPp][Mm])?)/i;
-    const checkoutPattern =
-        /[Cc]heck[- ]?out[:\s]+(?:before\s+)?(\d{1,2}(?::\d{2})?\s*(?:[AaPp][Mm])?)/i;
+    const checkinPattern = /[Cc]heck[- ]?in[:\s]+(?:after\s+)?(\d{1,2}(?::\d{2})?\s*(?:[AaPp][Mm])?)/i;
+    const checkoutPattern = /[Cc]heck[- ]?out[:\s]+(?:before\s+)?(\d{1,2}(?::\d{2})?\s*(?:[AaPp][Mm])?)/i;
 
-    const smokingNoPattern =
-        /no\s+smoking|smoking\s+(?:is\s+)?not\s+(?:allowed|permitted)|non[- ]?smoking/i;
+    const smokingNoPattern = /no\s+smoking|smoking\s+(?:is\s+)?not\s+(?:allowed|permitted)|non[- ]?smoking/i;
     const smokingYesPattern = /smoking\s+(?:is\s+)?(?:allowed|permitted)/i;
 
     const petsNoPattern = /no\s+pets|pets?\s+(?:are\s+)?not\s+allowed|pet[- ]?free/i;
     const petsYesPattern = /pets?\s+(?:are\s+)?allowed|pets?\s+welcome|pet[- ]?friendly/i;
 
-    const eventsNoPattern =
-        /no\s+(?:events?|parties)|(?:events?|parties)\s+(?:are\s+)?not\s+allowed/i;
+    const eventsNoPattern = /no\s+(?:events?|parties)|(?:events?|parties)\s+(?:are\s+)?not\s+allowed/i;
     const eventsYesPattern = /(?:events?|parties)\s+(?:are\s+)?allowed|suitable\s+for\s+events/i;
 
     function searchPolicies(obj: any): string[] {
@@ -934,7 +902,7 @@ function extractImages(galleryData: any): PropertyImage[] {
             continue;
         }
         const image = safeGet(imgInfo, ['image'], {});
-        const url = isDict(image) ? image.url ?? null : null;
+        const url = isDict(image) ? (image.url ?? null) : null;
         const description = (isDict(image) ? image.description : null) ?? imgInfo.description ?? null;
         if (pyTruthy(url)) {
             images.push({
@@ -956,7 +924,7 @@ function extractImages(galleryData: any): PropertyImage[] {
                 continue;
             }
             const image = safeGet(imgInfo, ['image'], {});
-            const url = isDict(image) ? image.url ?? null : null;
+            const url = isDict(image) ? (image.url ?? null) : null;
             const description = (isDict(image) ? image.description : null) ?? imgInfo.description ?? null;
             if (pyTruthy(url) && !images.some((i) => i.url === url)) {
                 images.push({
@@ -974,20 +942,16 @@ function extractImages(galleryData: any): PropertyImage[] {
 function extractFeatures(summaryData: any): Feature[] {
     const features: Feature[] = [];
 
-    const spaceOverview = safeGet(
-        summaryData,
-        ['data', 'propertyInfo', 'summary', 'spaceOverview'],
-        {},
-    );
+    const spaceOverview = safeGet(summaryData, ['data', 'propertyInfo', 'summary', 'spaceOverview'], {});
 
     function extractFromItem(item: any): Feature | null {
         if (!isDict(item)) {
             return null;
         }
 
-        const {text} = item;
+        const { text } = item;
         const primary = item.primary || {};
-        const primaryText = isDict(primary) ? primary.text ?? null : null;
+        const primaryText = isDict(primary) ? (primary.text ?? null) : null;
 
         let iconId: any = null;
         const primaryGraphic = safeGet(primary, ['graphic'], {});
@@ -1050,11 +1014,7 @@ function buildUnitImageMap(galleryData: any, unitNames: string[]): Record<string
         return result;
     }
 
-    const categorizedImages = safeGet(
-        galleryData,
-        ['data', 'productGallery', 'categorizedImages'],
-        [],
-    );
+    const categorizedImages = safeGet(galleryData, ['data', 'productGallery', 'categorizedImages'], []);
     const allImages: any[] = [];
     for (const category of asArray(categorizedImages)) {
         // Skip the "all" category to avoid duplicating every image.
@@ -1068,14 +1028,11 @@ function buildUnitImageMap(galleryData: any, unitNames: string[]): Record<string
     }
 
     // Normalize unit names for matching (lowercase, stripped).
-    const normalizedUnits: Array<[string, string]> = unitNames.map((name) => [
-        name,
-        name.toLowerCase().trim(),
-    ]);
+    const normalizedUnits: [string, string][] = unitNames.map((name) => [name, name.toLowerCase().trim()]);
 
     for (const imgItem of allImages) {
         const img = imgItem.image || {};
-        const {url} = img;
+        const { url } = img;
         if (!pyTruthy(url)) {
             continue;
         }
@@ -1114,11 +1071,7 @@ function extractUnitsFromOffers(
 ): PropertyUnit[] {
     const units: PropertyUnit[] = [];
 
-    const categorizedListings = safeGet(
-        offersData,
-        ['data', 'propertyOffers', 'categorizedListings'],
-        [],
-    );
+    const categorizedListings = safeGet(offersData, ['data', 'propertyOffers', 'categorizedListings'], []);
 
     // Collect unit names first for image matching.
     const unitNames: string[] = [];
@@ -1145,7 +1098,7 @@ function extractUnitsFromOffers(
 
         const typename = listing.__typename;
         if (typename === 'LodgingCategorizedUnit') {
-            const {unitId} = listing;
+            const { unitId } = listing;
             if (pyTruthy(unitId)) {
                 const header = listing.header || {};
                 const unitName = header.text ?? null;
@@ -1189,19 +1142,12 @@ function extractUnitsFromOffers(
 }
 
 /** Extract units from gallery image descriptions when offers has no categorizedListings. */
-function extractUnitsFromGallery(
-    galleryData: any,
-    roomAmenities: AmenityCategory[] | null = null,
-): PropertyUnit[] {
+function extractUnitsFromGallery(galleryData: any, roomAmenities: AmenityCategory[] | null = null): PropertyUnit[] {
     if (!pyTruthy(galleryData)) {
         return [];
     }
 
-    const categorizedImages = safeGet(
-        galleryData,
-        ['data', 'productGallery', 'categorizedImages'],
-        [],
-    );
+    const categorizedImages = safeGet(galleryData, ['data', 'productGallery', 'categorizedImages'], []);
 
     // Collect all images with unit name prefixes. A Map preserves first-seen
     // insertion order, matching Python dict iteration order.
@@ -1214,7 +1160,7 @@ function extractUnitsFromGallery(
         }
         for (const imgItem of asArray(category.images)) {
             const img = imgItem.image || {};
-            const {url} = img;
+            const { url } = img;
             const description = img.description || '';
             if (!pyTruthy(url) || !description.includes(' | ')) {
                 continue;
@@ -1300,11 +1246,7 @@ export function formatProperty(args: {
 
     // Fall back to PropertySummary reviewSummary if page layout had no rating.
     if (rating === null) {
-        const propertyDetails = safeGet(
-            summaryData,
-            ['data', 'propertyInfo', 'propertyDetails'],
-            {},
-        );
+        const propertyDetails = safeGet(summaryData, ['data', 'propertyInfo', 'propertyDetails'], {});
         const reviewSummary = propertyDetails.reviewSummary || {};
         rating = extractRating(reviewSummary);
     }
@@ -1335,7 +1277,7 @@ export function formatProperty(args: {
     const houseRules = extractHouseRules(policies);
 
     // Get thumbnail (first image URL).
-    const thumbnail = pyTruthy(images) ? images[0].url ?? null : null;
+    const thumbnail = pyTruthy(images) ? (images[0].url ?? null) : null;
 
     // Extract room amenities separately for per-unit attachment.
     let roomAmenities = extractCategorizedAmenitiesFromSummary(contentData, 'Room amenities');
@@ -1346,9 +1288,7 @@ export function formatProperty(args: {
     }
 
     // Extract units from categorizedListings (multi-unit properties).
-    let units = pyTruthy(offersData)
-        ? extractUnitsFromOffers(offersData, galleryData, roomAmenities)
-        : [];
+    let units = pyTruthy(offersData) ? extractUnitsFromOffers(offersData, galleryData, roomAmenities) : [];
 
     // Fallback: discover units from gallery image descriptions.
     if (!pyTruthy(units) && pyTruthy(galleryData)) {
@@ -1398,12 +1338,7 @@ export function formatProperty(args: {
     };
 }
 
-export function formatError(
-    url: string,
-    propertyId: string,
-    error: string,
-    platform: Platform | null,
-): ErrorRow {
+export function formatError(url: string, propertyId: string, error: string, platform: Platform | null): ErrorRow {
     return {
         platform,
         url,

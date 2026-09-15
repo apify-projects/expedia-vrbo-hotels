@@ -14,7 +14,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { describe, expect,it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { scrapeProperty } from '../src/routes.js';
 import type { Platform } from '../src/url-parser.js';
@@ -33,15 +33,16 @@ interface Fixture {
 }
 
 /** Replays a fixture's five GraphQL responses, keyed by operationName. */
-const replay = (fx: Fixture) => fakeSendRequest((url, options) => {
-    if (options.method !== 'POST' || !url.endsWith('/graphql')) {
-        throw new Error(`fixture ${fx.name}: unexpected ${options.method} ${url}`);
-    }
-    const { operationName } = JSON.parse(String(options.body ?? '{}'));
-    const response = fx.graphql[operationName];
-    if (response === undefined) throw new Error(`fixture ${fx.name}: no GraphQL response for ${operationName}`);
-    return { body: JSON.stringify(response) };
-}).send;
+const replay = (fx: Fixture) =>
+    fakeSendRequest((url, options) => {
+        if (options.method !== 'POST' || !url.endsWith('/graphql')) {
+            throw new Error(`fixture ${fx.name}: unexpected ${options.method} ${url}`);
+        }
+        const { operationName } = JSON.parse(String(options.body ?? '{}'));
+        const response = fx.graphql[operationName];
+        if (response === undefined) throw new Error(`fixture ${fx.name}: no GraphQL response for ${operationName}`);
+        return { body: JSON.stringify(response) };
+    }).send;
 
 const fixtures: Fixture[] = readdirSync(GOLDEN)
     .filter((f) => f.endsWith('.json'))
