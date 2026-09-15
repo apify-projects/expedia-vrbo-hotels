@@ -3877,9 +3877,8 @@
     "source": "VRBO",
     "url": "https://www.vrbo.com/117898910",
     "id": "117898910",
-    "name": "2BD Apt with Marina Views \u2022 Walk to Beach & Town",
-    "tagline": null,
-    "description": "Enjoy stunning river and marina views from this renovated 2bdrm apartment, just a 3-min walk to Lagos historic centre and 5 mins to beaches. Perfectly located to enjoy Lagos\u2019 restaurants, shops, nightlife, and beautiful Algarve beaches, this apartment combines comfort, convenience, and spectacular views for an unforgettable stay. This bright 90 m\u00b2 apartment combines comfort, style, and unbeatable location. Features * Living room with balcony overlooking the river, Marina, and main avenue * 2 bedrooms with hotel quality beds, scenic views * Fully equipped kitchen with dishwasher and cooking essentials * Laundry machine & dryer, plus outdoor patio for clothes or surfboards * Air conditioning with heating in all rooms * Soundproof windows with automatic blackout blinds * Cable TV with international channels & Netflix * High-speed WiFi * Bed linen, towels, quality brand hand soap, toilet paper, hairdryer provided Perfect Location * Historic Lagos centre 3-min walk: restaurants, shops, and ",
+    "name": "2BD Apt with Marina Views • Walk to Beach & Town",
+    "description": "Enjoy stunning river and marina views from this renovated 2bdrm apartment, just a 3-min walk to Lagos historic centre and 5 mins to beaches. Perfectly located to enjoy Lagos’ restaurants, shops, nightlife, and beautiful Algarve beaches, this apartment combines comfort, convenience, and spectacular views for an unforgettable stay. This bright 90 m² apartment combines comfort, style, and unbeatable location. Features * Living room with balcony overlooking the river, Marina, and main avenue * 2 bedrooms with hotel quality beds, scenic views * Fully equipped kitchen with dishwasher and cooking essentials * Laundry machine & dryer, plus outdoor patio for clothes or surfboards * Air conditioning with heating in all rooms * Soundproof windows with automatic blackout blinds * Cable TV with international channels & Netflix * High-speed WiFi * Bed linen, towels, quality brand hand soap, toilet paper, hairdryer provided Perfect Location * Historic Lagos centre 3-min walk: restaurants, shops, and ",
     "thumbnail": "https://media.vrbo.com/lodging/118000000/117900000/117899000/117898910/47d7aff2.jpg?impolicy=resizecrop&rw=1200&ra=fit",
     "latitude": 37.106663,
     "longitude": -8.674718,
@@ -4079,12 +4078,6 @@
       "Host has not indicated whether there is a smoke detector on the property",
       "Safety features at this property include a fire extinguisher"
     ],
-    "host": {
-      "id": null,
-      "name": null,
-      "profileImage": null,
-      "about": null
-    },
     "houseRules": {
       "checkInTime": "4:00 PM",
       "checkOutTime": "10:00 AM",
@@ -4112,7 +4105,6 @@
           }
         ],
         "amenities": [],
-        "price": null,
         "bedTypes": null
       }
     ],

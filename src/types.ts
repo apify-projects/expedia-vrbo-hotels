@@ -52,14 +52,6 @@ export interface PolicySection {
     items: Array<string | PolicySubSection>;
 }
 
-/** Host info from `extract_host_data`. */
-export interface HostData {
-    id: string | null;
-    name: string | null;
-    profileImage: string | null;
-    about: string | null;
-}
-
 /** Structured house rules from `extract_house_rules`. */
 export interface HouseRules {
     checkInTime: string | null;
@@ -81,42 +73,13 @@ export interface BedType {
     count: number;
 }
 
-/** A per-unit price object from `extract_unit_price` / property fallback. */
-export interface UnitPrice {
-    amount: number | null;
-    formatted: string | null;
-    total: number | null;
-    totalFormatted: string | null;
-    currency: string | null;
-}
-
-/** One line of the price breakdown in `extract_pricing`. */
-export interface PriceLine {
-    formatted: string;
-    label: string | null;
-}
-
-/** Property-level pricing from `extract_pricing` (offers tripSummary). */
-export interface Pricing {
-    total: number | null;
-    nightly: number | null;
-    currency: string | null;
-    formattedTotal: string | null;
-    roomNightMessage: string | null;
-    /** Only present when there is at least one DisplayPrice line item. */
-    priceBreakdown?: PriceLine[];
-}
-
 /**
- * A unit entry. The Python code builds units from three different code paths
- * with slightly different key sets, so several fields are optional/absent:
+ * A unit entry. Units are built from three code paths with slightly different
+ * key sets, so several fields are optional/absent:
  *
  * - from offers (`extract_units_from_offers`): has `bedTypes`.
- * - from gallery (`extract_units_from_gallery`): NO `bedTypes` key, price=null.
+ * - from gallery (`extract_units_from_gallery`): NO `bedTypes` key.
  * - single-unit fallback: NO top-level `description` key, but has `bedTypes`.
- *
- * `price` can be a per-unit UnitPrice, the property-level Pricing object (used
- * as the single-unit fallback's price), or null.
  */
 export interface PropertyUnit {
     id: string | null;
@@ -126,7 +89,6 @@ export interface PropertyUnit {
     features: Feature[];
     amenities: AmenityCategory[];
     images: UnitImage[];
-    price: UnitPrice | Pricing | null;
     /** Present in offers/fallback units; ABSENT in gallery-derived units. null when empty. */
     bedTypes?: BedType[] | null;
 }
@@ -137,7 +99,6 @@ export interface PropertyResult {
     url: string;
     id: string;
     name: string;
-    tagline: string | null;
     description: string | null;
     thumbnail: string | null;
     latitude: number | null;
@@ -157,7 +118,6 @@ export interface PropertyResult {
     amenities: AmenityCategory[];
     policies: PolicySection[];
     importantInfo: string[];
-    host: HostData;
     houseRules: HouseRules;
     units: PropertyUnit[];
     scrapedAt: string;

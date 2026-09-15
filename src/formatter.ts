@@ -16,17 +16,13 @@ import type {
     ErrorRow,
     Feature,
     HighlightedAmenity,
-    HostData,
     HouseRules,
     PolicySection,
     PolicySubSection,
-    PriceLine,
-    Pricing,
     PropertyImage,
     PropertyResult,
     PropertyUnit,
     UnitImage,
-    UnitPrice,
 } from './types.js';
 import { type Platform, PLATFORM_LABEL_MAP } from './url-parser.js';
 
@@ -694,76 +690,6 @@ function extractImportantInfo(contentData: any): string[] {
     return infoItems;
 }
 
-/** Extract host information from aboutThisHost section. */
-function extractHostData(contentData: any): HostData {
-    const result: HostData = {
-        id: null,
-        name: null,
-        profileImage: null,
-        about: null,
-    };
-
-    const aboutHost = safeGet(
-        contentData,
-        ['data', 'propertyInfo', 'propertyContentSectionGroups', 'aboutThisHost'],
-        {},
-    );
-    const sections = aboutHost.sections || [];
-
-    for (const section of asArray(sections)) {
-        // Check section header for host name.
-        const sectionHeader = section.header || {};
-        if (pyTruthy(sectionHeader)) {
-            const headerText = sectionHeader.text;
-            if (pyTruthy(headerText) && !pyTruthy(result.name)) {
-                // Header text often contains "Hosted by {name}" or just the name.
-                const match = /(?:[Hh]osted by\s+)?(.+)/.exec(headerText);
-                if (match) {
-                    result.name = match[1].trim();
-                }
-            }
-        }
-
-        const bodySubs = section.bodySubSections || [];
-        for (const sub of asArray(bodySubs)) {
-            const elementsV2 = sub.elementsV2 || [];
-            for (const elemGroup of asArray(elementsV2)) {
-                for (const element of asArray(elemGroup.elements)) {
-                    // Check for profile image in leadingGraphic.
-                    const leadingGraphic = element.leadingGraphic || {};
-                    if (pyTruthy(leadingGraphic) && isDict(leadingGraphic)) {
-                        const image = leadingGraphic.image || {};
-                        if (pyTruthy(image) && isDict(image)) {
-                            const imgUrl = image.url;
-                            if (pyTruthy(imgUrl) && !pyTruthy(result.profileImage)) {
-                                result.profileImage = imgUrl;
-                            }
-                        }
-                    }
-
-                    // Check header for host name.
-                    const header = element.header || {};
-                    if (pyTruthy(header)) {
-                        const headerText = header.text;
-                        if (pyTruthy(headerText) && !pyTruthy(result.name)) {
-                            result.name = headerText;
-                        }
-                    }
-
-                    // Extract about text from items.
-                    const items = element.items || [];
-                    const texts = extractTextItems(items);
-                    if (pyTruthy(texts) && !pyTruthy(result.about)) {
-                        result.about = texts.join(' ');
-                    }
-                }
-            }
-        }
-    }
-
-    return result;
-}
-
 // ---------------------------------------------------------------------------
 // Bed types / review count / room setup / house rules
 // ---------------------------------------------------------------------------
@@ -1110,126 +1036,8 @@ function extractFeatures(summaryData: any): Feature[] {
 }
 
 // ---------------------------------------------------------------------------
-// Pricing / units
+// Units
 // ---------------------------------------------------------------------------
-
-/** Extract pricing information from PropertyOffers response. */
-function extractPricing(offersData: any): Pricing | null {
-    const tripSummary = safeGet(offersData, ['data', 'propertyOffers', 'tripSummary'], {});
-
-    if (!pyTruthy(tripSummary)) {
-        return null;
-    }
-
-    const price = tripSummary.price || {};
-    if (!pyTruthy(price)) {
-        return null;
-    }
-
-    const lead = price.lead || {};
-    const total = price.total || {};
-
-    const currencyInfo = lead.currencyInfo || {};
-
-    const result: Pricing = {
-        total: total.amount ?? null,
-        nightly: lead.amount ?? null,
-        currency: currencyInfo.code ?? null,
-        formattedTotal: lead.formatted ?? null,
-        roomNightMessage: price.roomNightMessage ?? null,
-    };
-
-    // Get display messages.
-    const displayMessages = price.displayMessages || [];
-    const priceLines: PriceLine[] = [];
-    for (const msg of asArray(displayMessages)) {
-        const lineItems = msg.lineItems || [];
-        for (const item of asArray(lineItems)) {
-            if (item.__typename === 'DisplayPrice') {
-                const formatted = safeGet(item, ['price', 'formatted']);
-                const label = safeGet(item, ['price', 'accessibilityLabel']);
-                if (pyTruthy(formatted)) {
-                    priceLines.push({ formatted, label: label ?? null });
-                }
-            }
-        }
-    }
-    if (pyTruthy(priceLines)) {
-        result.priceBreakdown = priceLines;
-    }
-
-    return result;
-}
-
-/** Helper to extract price data from a price object. */
-function extractPriceFromObject(price: any): UnitPrice | null {
-    if (!isDict(price)) {
-        return null;
-    }
-
-    const lead = price.lead || {};
-    const total = price.total || {};
-
-    // Check if we have actual price data.
-    if ((lead.amount ?? null) !== null || pyTruthy(lead.formatted)) {
-        const currencyInfo = lead.currencyInfo || {};
-        return {
-            amount: lead.amount ?? null,
-            formatted: lead.formatted ?? null,
-            total: total.amount ?? null,
-            totalFormatted: total.formatted ?? null,
-            currency: currencyInfo.code ?? null,
-        };
-    }
-
-    return null;
-}
-
-/** Extract per-unit pricing from a LodgingCategorizedUnit. */
-function extractUnitPrice(listing: any): UnitPrice | null {
-    const primarySelections = listing.primarySelections || [];
-
-    for (const selection of asArray(primarySelections)) {
-        if (!isDict(selection)) {
-            continue;
-        }
-
-        const propertyUnit = selection.propertyUnit || {};
-        const ratePlans = propertyUnit.ratePlans || [];
-
-        for (const ratePlan of asArray(ratePlans)) {
-            if (!isDict(ratePlan)) {
-                continue;
-            }
-
-            const priceDetailsRaw = ratePlan.priceDetails;
-
-            // Handle priceDetails being either a dict (VRBO) or list (Expedia).
-            if (Array.isArray(priceDetailsRaw)) {
-                // Expedia format: priceDetails is a list of price detail objects.
-                for (const pd of priceDetailsRaw) {
-                    if (!isDict(pd)) {
-                        continue;
-                    }
-                    const price = pd.price || {};
-                    const result = extractPriceFromObject(price);
-                    if (result) {
-                        return result;
-                    }
-                }
-            } else if (isDict(priceDetailsRaw)) {
-                // VRBO format: priceDetails is a single dict.
-                const price = priceDetailsRaw.price || {};
-                const result = extractPriceFromObject(price);
-                if (result) {
-                    return result;
-                }
-            }
-        }
-    }
-
-    return null;
-}
 
 /** Build a mapping of unit names to their matched gallery images. */
 function buildUnitImageMap(galleryData: any, unitNames: string[]): Record<string, UnitImage[]> {
@@ -1312,25 +1120,6 @@ function extractUnitsFromOffers(
         [],
     );
 
-    // Property-level price from tripSummary as fallback.
-    const tripSummary = safeGet(offersData, ['data', 'propertyOffers', 'tripSummary'], {});
-    let propertyPrice: UnitPrice | null = null;
-    if (pyTruthy(tripSummary)) {
-        const priceData = tripSummary.price || {};
-        const lead = priceData.lead || {};
-        if (pyTruthy(lead.formatted) || (lead.amount ?? null) !== null) {
-            const currencyInfo = lead.currencyInfo || {};
-            const totalData = priceData.total || {};
-            propertyPrice = {
-                amount: lead.amount ?? null,
-                formatted: lead.formatted ?? null,
-                total: totalData.amount ?? null,
-                totalFormatted: null,
-                currency: currencyInfo.code ?? null,
-            };
-        }
-    }
-
     // Collect unit names first for image matching.
     const unitNames: string[] = [];
     for (const listing of asArray(categorizedListings)) {
@@ -1372,9 +1161,6 @@ function extractUnitsFromOffers(
                     }
                 }
 
-                // Per-unit price, fallback to property price.
-                const unitPrice = extractUnitPrice(listing) ?? propertyPrice;
-
                 // Look up matched images by unit name.
                 // Python: unit_image_map.get(unit_name, []) — when unit_name is
                 // null (no header text) it isn't a key, so defaults to [].
@@ -1393,7 +1179,6 @@ function extractUnitsFromOffers(
                     features,
                     amenities: roomAmenities || [],
                     images: unitImages,
-                    price: unitPrice,
                     bedTypes: pyTruthy(bedTypes) ? bedTypes : null,
                 });
             }
@@ -1465,7 +1250,6 @@ function extractUnitsFromGallery(
             features: [],
             amenities: roomAmenities || [],
             images,
-            price: null,
         });
     }
 
@@ -1503,12 +1287,7 @@ export function formatProperty(args: {
     // Extract from PropertySummary.
     const summary = safeGet(summaryData, ['data', 'propertyInfo', 'summary'], {});
 
-    // Mirror Python `dict.get(key, "")`: the "" default applies only when the
-    // key is ABSENT. A present-but-null value (the API sends `tagline: null`)
-    // must stay null, not collapse to "" — otherwise `tagline != name` would
-    // wrongly emit "" instead of None in the output.
-    const name = isDict(summary) && 'name' in summary ? summary.name : '';
-    const tagline = isDict(summary) && 'tagline' in summary ? summary.tagline : '';
+    const { name } = summary;
 
     // Location data.
     const location = summary.location || {};
@@ -1542,12 +1321,6 @@ export function formatProperty(args: {
 
     // Extract features from summary data.
     const features = extractFeatures(summaryData);
-
-    // Extract pricing from offers data.
-    const pricing = pyTruthy(offersData) ? extractPricing(offersData) : null;
-
-    // Extract host data.
-    const host = extractHostData(contentData);
 
     // Extract review count - prefer page layout, fall back to summary.
     let reviewCount = reviewCountFromLayout;
@@ -1591,7 +1364,6 @@ export function formatProperty(args: {
             images: [],
             features,
             amenities: roomAmenities,
-            price: pricing,
             bedTypes: pyTruthy(bedTypes) ? bedTypes : null,
         });
     }
@@ -1600,8 +1372,7 @@ export function formatProperty(args: {
         source: PLATFORM_LABEL_MAP[platform],
         url,
         id: propertyId,
-        name: name || tagline,
-        tagline: tagline !== name ? tagline : null,
+        name,
         description: pyTruthy(description) ? description.slice(0, 1000) : null,
         thumbnail,
         latitude: coordinates.latitude ?? null,
@@ -1621,7 +1392,6 @@ export function formatProperty(args: {
         amenities: detailedAmenities,
         policies,
         importantInfo,
-        host,
         houseRules,
         units,
         scrapedAt: nowIso(),

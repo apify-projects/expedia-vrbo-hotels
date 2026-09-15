@@ -36,8 +36,11 @@ rather than rendering web pages, and auto-detects the platform from each URL.
 
 One **Terminal row per input URL** — either a success row or an error row, never
 both, never duplicated. Success rows carry `source`, `name`, location, `rating`,
-`reviewCount`, images, amenities, policies, host, house rules, per-unit details,
-pricing, and more. Error rows carry `source`, `url`, `id`, and `error`.
+`reviewCount`, images, amenities, policies, house rules and per-unit details.
+Error rows carry `source`, `url`, `id`, and `error`.
+
+Prices are **not** available from this API — the offers response returns them as
+`null` at every date window we tested — so the output has no price fields.
 
 ## How it works
 
