@@ -13,7 +13,7 @@ import {
 } from '../src/resolvers.js';
 import { loadPage } from './load-page.js';
 
-describe('needsIdResolution — which Vrbo URLs carry a legacy id', () => {
+describe('needsIdResolution - which Vrbo URLs carry a legacy id', () => {
     it.each([
         ['bare numeric', 'https://www.vrbo.com/117898910', '', false],
         ['pdp/lo', 'https://www.vrbo.com/en-ca/pdp/lo/1489839', '', false],

@@ -1,7 +1,7 @@
 /**
  * HMAC signing for Expedia Group Mobile GraphQL API authentication.
  *
- * Works for Vrbo, Expedia and Hotels.com — all three share the same credentials.
+ * Works for Vrbo, Expedia and Hotels.com - all three share the same credentials.
  * The signature scheme is the reverse-engineered HMACInterceptor from the Expedia
  * Android apps.
  *

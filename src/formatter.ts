@@ -40,7 +40,7 @@ function pyTruthy(v: any): boolean {
     return Boolean(v);
 }
 
-/** Python `isinstance(x, dict)` — a plain (non-array, non-null) object. */
+/** Python `isinstance(x, dict)` - a plain (non-array, non-null) object. */
 function isDict(x: any): x is Record<string, any> {
     return x !== null && typeof x === 'object' && !Array.isArray(x);
 }
@@ -50,14 +50,14 @@ function isDict(x: any): x is Record<string, any> {
  *
  * In Python, iterating a dict (object) where a list was expected harmlessly
  * walks the dict KEYS, which then fail the `isinstance(x, dict)` check and are
- * skipped — so a non-list contributes nothing and does NOT error. JS `for...of`
+ * skipped - so a non-list contributes nothing and does NOT error. JS `for...of`
  * over a non-array object THROWS, so we collapse "non-array → empty" here to
  * preserve the Python behavior. For an actual array, returns it unchanged.
  */
 const asArray = (x: any): any[] => (Array.isArray(x) ? x : []);
 
 /**
- * Python `round(x, 1)` — round-half-to-even on the decimal value.
+ * Python `round(x, 1)` - round-half-to-even on the decimal value.
  * Required for faithful rating normalization (JS Math.round is half-up).
  */
 function pyRound1(x: number): number {
@@ -75,7 +75,7 @@ function pyRound1(x: number): number {
 }
 
 /**
- * Python `float(str)` — returns null when not parseable, mirroring the
+ * Python `float(str)` - returns null when not parseable, mirroring the
  * try/except (ValueError) guards in the Python. Accepts leading/trailing
  * whitespace and standard float syntax. Rejects empty / NaN-like junk.
  */
@@ -92,7 +92,7 @@ function pyFloat(s: any): number | null {
 }
 
 /**
- * Python `int(str)` for a base-10 integer literal — returns null when not a
+ * Python `int(str)` for a base-10 integer literal - returns null when not a
  * pure integer (matches `int("9.0")` raising ValueError). Used for review
  * counts parsed from strings.
  */
@@ -105,7 +105,7 @@ function pyIntStrict(s: any): number | null {
 }
 
 /**
- * Python `str.capitalize()` — first char upper, the rest lower.
+ * Python `str.capitalize()` - first char upper, the rest lower.
  */
 function pyCapitalize(s: string): string {
     if (s.length === 0) return s;
@@ -1114,7 +1114,7 @@ function extractUnitsFromOffers(
                 }
 
                 // Look up matched images by unit name.
-                // Python: unit_image_map.get(unit_name, []) — when unit_name is
+                // Python: unit_image_map.get(unit_name, []) - when unit_name is
                 // null (no header text) it isn't a key, so defaults to [].
                 const unitImages =
                     unitName !== null && Object.prototype.hasOwnProperty.call(unitImageMap, unitName)

@@ -52,8 +52,8 @@ export interface ScrapeArgs {
 }
 
 /**
- * Vrbo always goes through vrbo.com — regional endpoints can return wrong data
- * for some ids — and Hotels.com through Expedia, whose endpoint does not
+ * Vrbo always goes through vrbo.com - regional endpoints can return wrong data
+ * for some ids - and Hotels.com through Expedia, whose endpoint does not
  * soft-block through residential proxies.
  */
 function buildClient(platform: Platform, url: string, sendRequest: SendRequest): PropertyClient {
@@ -89,7 +89,7 @@ export async function scrapeProperty({ url, platform, propertyId, sendRequest }:
 
 /** This target soft-blocks with a 200 that is empty, or a bare html skeleton. */
 export function assertPageHasContent($: CheerioAPI, url: string): void {
-    if (!$.root().text().trim()) throw new BlockedResponseError(`Empty page from ${url} — soft-block`);
+    if (!$.root().text().trim()) throw new BlockedResponseError(`Empty page from ${url} - soft-block`);
 }
 
 export const router = createCheerioRouter();
@@ -105,7 +105,7 @@ router.addHandler(LABELS.SHORT_LINK, async ({ request, $, log, addRequests }) =>
 });
 
 router.addHandler(LABELS.VRBO, async ({ request, $, sendRequest, log }) => {
-    // Always scrape via vrbo.com — regional endpoints can return wrong data.
+    // Always scrape via vrbo.com - regional endpoints can return wrong data.
     const [parsedId, suffix] = extractVrboPropertyId(request.url);
     if (!parsedId) throw new URLParseError(`Could not extract property ID from Vrbo URL: ${request.url}`);
 

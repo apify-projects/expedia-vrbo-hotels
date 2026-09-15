@@ -1,5 +1,5 @@
 /**
- * Opt-in LIVE smoke test — one real URL per platform through the residential
+ * Opt-in LIVE smoke test - one real URL per platform through the residential
  * proxy. Gated inside the file by `describe.skipIf(!SMOKE)` so it is collected
  * but skipped in the standard suite; run with `npm run test:smoke`
  * (needs `SMOKE=1` + `APIFY_PROXY_PASSWORD`).

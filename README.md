@@ -1,63 +1,102 @@
 # Expedia, Vrbo & Hotels.com Property Scraper
 
-Unified scraper for **Expedia**, **Vrbo**, and **Hotels.com** property details. It
-talks to the Expedia Group **Mobile GraphQL API** (impersonating the Android app)
-rather than rendering web pages, and auto-detects the platform from each URL.
+Scrape hotel and vacation-rental listings from Expedia, Vrbo, and Hotels.com without a login or API keys, for travel market research, competitor tracking, and building property datasets.
 
-## Input
+## What does Expedia, Vrbo & Hotels.com Property Scraper do?
 
-| Field  | Type     | Description                                                                               |
-| ------ | -------- | ----------------------------------------------------------------------------------------- |
-| `urls` | string[] | Property URLs from Expedia, Vrbo, or Hotels.com. Platform is auto-detected. **Required.** |
+Paste property URLs from any of the three sites, mixed in one list, and get one structured dataset item per URL. All three belong to Expedia Group and share a backend, so you don't sort your URLs by site or run three different scrapers.
+
+- 🏨 **Full listing detail** - name, description, address, coordinates, rating, review count
+- 🖼️ **Every photo** with its caption, plus the thumbnail
+- 🛏️ **Room and unit breakdown** - each with its own photos, bed types, and amenities
+- 📋 **Amenities, policies, house rules** - check-in times, pets, smoking, events
+- 🔀 **Any mix of the three sites** in a single run, platform detected per URL
+- 🔁 **Residential proxy rotation** and retries built in, nothing to configure
+
+## ⬇️ Input
+
+### Example
 
 ```json
 {
     "urls": [
-        "https://www.vrbo.com/117898910",
         "https://www.expedia.com/Prague-Hotels-Pentahotel-Prague.h525006.Hotel-Information",
-        "https://www.hotels.com/ho136900/hilton-prague-old-town-prague-czech-republic/"
+        "https://www.hotels.com/ho136900/hilton-prague-old-town-prague-czech-republic/",
+        "https://www.vrbo.com/en-gb/p11348801"
     ]
 }
 ```
 
-The actor always runs through Apify residential proxies — the Mobile GraphQL API
-rejects datacenter IPs — so there is nothing to configure. Concurrency is left to
-Crawlee's autoscaling; one input URL fans out into five API calls, so a hand-set
-number mostly just raises the block rate.
+### Which URLs work
 
-### Supported URL formats
+| Site | Paste this |
+| --- | --- |
+| Expedia | a hotel page - `expedia.com/....h525006.Hotel-Information`, and the international domains (`.co.uk`, `.de`, `.it`, ...) |
+| Hotels.com | a property page - `hotels.com/ho136900/...`, including `uk.hotels.com` and locale paths like `/de/ho136900/` |
+| Vrbo | a listing page - `vrbo.com/en-gb/p11348801`, or a bare id like `vrbo.com/117898910` |
 
-- **Vrbo**: numeric (`/1234567`), legacy HomeAway (`/11887139ha`), localized
-  (`/en-gb/p11348801`, `/en-ca/pdp/lo/1489839`), regional sites
-  (`bookabach.co.nz`, `stayz.com.au`, …), and short links (`t.vrbo.io/…`).
-- **Expedia**: `…​.h12345.Hotel-Information` across international domains.
-- **Hotels.com**: `…/ho12345/…` (converted to the Expedia Property ID internally).
+Duplicate URLs pointing at the same property are scraped once. A URL that can't be used gets its own item explaining why, and the rest of the run carries on.
 
-## Output
+## ⬆️ Output
 
-One row per input URL — either a success row or an error row, never both. URLs
-that point at the same property are scraped once; the run log says how many
-duplicates were skipped. Success rows carry `platform` (`vrbo`, `expedia` or
-`hotels.com`), `name`, location, `rating`,
-`reviewCount`, images, amenities, policies, house rules and per-unit details.
-Error rows carry `platform`, `url`, `id`, and `error`.
+One item per URL, the same shape whichever site it came from.
 
-Prices are **not** available from this API — the offers response returns them as
-`null` at every date window we tested — so the output has no price fields.
+### Example
 
-## How it works
+```json
+{
+    "platform": "expedia",
+    "url": "https://www.expedia.com/Prague-Hotels-Pentahotel-Prague.h525006.Hotel-Information",
+    "id": "525006",
+    "name": "Hotel PULSE8",
+    "city": "Prague",
+    "country": "CZE",
+    "latitude": 50.09477,
+    "longitude": 14.45477,
+    "rating": 9,
+    "reviewCount": 867,
+    "images": [{ "url": "https://images.trvl-media.com/lodging/...", "description": "Serves breakfast, lunch, and dinner" }],
+    "amenities": [{ "title": "Internet", "items": ["Available in all rooms: Free WiFi"] }],
+    "houseRules": { "checkInTime": null, "checkOutTime": null, "petsAllowed": true },
+    "units": [{ "name": "Double Balcony", "bedTypes": [{ "type": "King", "count": 1 }] }],
+    "scrapedAt": "2026-09-15T18:22:41.106Z"
+}
+```
 
-- **HTTP**: [impit](https://github.com/apify/impit) impersonating the `okhttp4`
-  Android TLS fingerprint (validated against the live endpoint before the build).
-- **Concurrency, retries, resume**: [Crawlee](https://crawlee.dev)'s
-  `CheerioCrawler` — one sticky residential IP per URL; an aborted/migrated run
-  resumes and skips already-scraped properties.
-- **Per property**: ID resolution → 5 parallel GraphQL fetches → response
-  validation → output formatting.
+A URL that fails gets an error item instead, with `platform`, `url`, `id`, and `error`.
 
-## Notes
+Anything the site doesn't publish is `null`, never a zero or an empty string, so "no rating yet" is distinguishable from "rated 0".
 
-- A soft-blocked (empty-body) response automatically rotates to a fresh IP and
-  retries.
-- Non-retryable inputs (unsupported URL, delisted Hotels.com listing) fail fast
-  with a structured error row.
+## FAQ
+
+### Can I scrape a whole city, or a search page?
+
+No. Give it the property URLs you want and it returns one item each.
+
+### Do I need an account on any of the sites?
+
+No. Only public listing data is read, the same as any visitor sees.
+
+### Does it collect personal data?
+
+No. Reviews, reviewer names, and host details are not part of the output.
+
+### Can I use it with integrations like Zapier, Make, or n8n?
+
+Yes. Every Apify Actor supports Schedules, webhooks, and the Apify integrations catalogue: Zapier, Make, n8n, Slack, Google Sheets, LangChain.
+
+### Can I use it through an MCP server?
+
+Yes. Every Apify Actor is reachable through the Apify MCP server, so an MCP-capable agent can run it as a tool.
+
+### Is it legal to scrape this data?
+
+Scraping publicly available data is generally legal, and this Actor reads only public listing pages and collects no personal data. You are responsible for what you do with the output. See our post on [the legality of web scraping](https://blog.apify.com/is-web-scraping-legal/), and consult a lawyer if unsure.
+
+## Your feedback
+
+Missing a field or hitting a bug? Open the Issues tab. Custom work is available through [Apify's custom solutions](https://apify.com/custom-solutions) team.
+
+### Disclaimer
+
+This Actor is an independent tool and is not affiliated with, endorsed by, or sponsored by Expedia Group, Inc. or any of its subsidiaries, including Expedia, Vrbo, and Hotels.com.

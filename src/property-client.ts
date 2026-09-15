@@ -194,7 +194,7 @@ export class PropertyClient {
         }
         const trimmed = (body ?? '').trim();
         if (!trimmed) {
-            throw new BlockedResponseError(`Empty body from ${this.endpoint} (HTTP ${statusCode}) — soft-block`);
+            throw new BlockedResponseError(`Empty body from ${this.endpoint} (HTTP ${statusCode}) - soft-block`);
         }
         let data: any;
         try {

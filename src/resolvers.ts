@@ -42,7 +42,7 @@ export const HOTELS_COM_HEADERS = {
     'Sec-Fetch-Site': 'none',
 };
 
-/** `…/lodging/1000000/30000/21900/21856/photo.jpg` -> `21856`. */
+/** `.../lodging/1000000/30000/21900/21856/photo.jpg` -> `21856`. */
 function idFromLodgingPath(url: string | undefined): string | null {
     const match = /\/lodging\/\d+\/\d+\/\d+\/(\d+)\//.exec(url ?? '');
     return match ? match[1] : null;

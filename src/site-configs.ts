@@ -19,7 +19,7 @@ export interface ExpediaSiteConfig extends VrboSiteConfig {
     appVersion: string;
 }
 
-// NOTE: always scrape Vrbo via vrbo.com — regional endpoints can return wrong
+// NOTE: always scrape Vrbo via vrbo.com - regional endpoints can return wrong
 // property data for some ids.
 export const VRBO_SITE_CONFIGS: Record<string, VrboSiteConfig> = {
     'vrbo.com': {

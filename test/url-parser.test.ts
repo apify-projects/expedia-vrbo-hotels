@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { URLParseError } from '../src/errors.js';
 import { detectPlatform, extractPropertyId, extractVrboPropertyId, numericId, validateUrl } from '../src/url-parser.js';
 
-describe('extractPropertyId — generic (ported example cases)', () => {
+describe('extractPropertyId - generic (ported example cases)', () => {
     it.each([
         [
             'https://www.expedia.com/Prague-Hotels-Pentahotel-Prague.h525006.Hotel-Information?chkin=2023-03-17',
@@ -34,7 +34,7 @@ describe('extractPropertyId — generic (ported example cases)', () => {
     });
 });
 
-describe('extractVrboPropertyId — id + suffix', () => {
+describe('extractVrboPropertyId - id + suffix', () => {
     it.each([
         ['https://www.vrbo.com/1234567', '1234567', ''],
         ['https://www.vrbo.com/10739791ha', '10739791', 'ha'],

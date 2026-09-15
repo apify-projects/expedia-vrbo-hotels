@@ -54,7 +54,7 @@ const ORACLE = {
     ],
 };
 
-describe('auth HMAC — byte-equality vs Python', () => {
+describe('auth HMAC - byte-equality vs Python', () => {
     it('uses the same credentials', () => {
         expect(HMAC_USERNAME).toBe(ORACLE.username);
         expect(HMAC_SECRET_KEY).toBe(ORACLE.secret);
