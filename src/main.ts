@@ -21,13 +21,7 @@ import { scrapeProperty } from './pipeline.js';
 import { detectPlatform, extractPropertyId, extractVrboPropertyId, type Platform } from './url-parser.js';
 
 interface ActorInput {
-    urls?: string[] | string;
-    url?: string;
-    proxyConfiguration?: Record<string, unknown>;
-    maxConcurrency?: number;
-    /** Back-compat alias for Crawlee's maxRequestRetries. */
-    maxRetries?: number;
-    maxRequestRetries?: number;
+    urls: string[];
 }
 
 /** Best-effort id + Platform tag for an error row. */
@@ -44,29 +38,15 @@ function errorRowMeta(url: string): { id: string; platform: Platform | null } {
 
 await Actor.init();
 
-const input = (await Actor.getInput<ActorInput>()) ?? {};
+const { urls } = await Actor.getInputOrThrow<ActorInput>();
 
-let urls: string[] = [];
-if (Array.isArray(input.urls)) urls = input.urls;
-else if (typeof input.urls === 'string') urls = [input.urls];
-if (urls.length === 0 && input.url) urls = [input.url];
-
-if (urls.length === 0) {
-    log.warning('No URLs provided in input');
-    await Actor.exit();
-}
-
-const proxyConfiguration = await Actor.createProxyConfiguration(
-    input.proxyConfiguration ?? { groups: ['RESIDENTIAL'] },
-);
-
-const maxConcurrency = input.maxConcurrency ?? 10;
-const maxRequestRetries = input.maxRequestRetries ?? input.maxRetries ?? 3;
+// Datacenter IPs are rejected
+const proxyConfiguration = await Actor.createProxyConfiguration({
+    groups: ['RESIDENTIAL'],
+    checkAccess: false,
+});
 
 const crawler = new BasicCrawler({
-    maxConcurrency,
-    maxRequestRetries,
-    useSessionPool: true,
     // Default request handler timeout (60s) is generous for 5 parallel GraphQL
     // calls plus an optional HTML prefetch; raise it so slow proxies don't abort.
     requestHandlerTimeoutSecs: 180,
@@ -97,7 +77,7 @@ const crawler = new BasicCrawler({
     },
 });
 
-log.info(`Processing ${urls.length} URLs (maxConcurrency=${maxConcurrency}, maxRequestRetries=${maxRequestRetries})`);
+log.info(`Processing ${urls.length} URLs`);
 // RequestQueue dedups by URL and persists handled requests across abort/migration,
 // so a resurrected run skips already-scraped Properties for free (ADR-0003).
 await crawler.addRequests(urls.map((url) => ({ url })));

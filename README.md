@@ -9,8 +9,6 @@ rather than rendering web pages, and auto-detects the platform from each URL.
 | Field | Type | Description |
 |-------|------|-------------|
 | `urls` | string[] | Property URLs from VRBO, Expedia, or Hotels.com. Platform is auto-detected. **Required.** |
-| `maxConcurrency` | integer | How many URLs to scrape in parallel (default `10`). |
-| `proxyConfiguration` | object | Proxy settings. **Residential is the default and is required in practice** — the API blocks datacenter IPs. |
 
 ```json
 {
@@ -18,11 +16,14 @@ rather than rendering web pages, and auto-detects the platform from each URL.
     "https://www.vrbo.com/117898910",
     "https://www.expedia.com/Prague-Hotels-Pentahotel-Prague.h525006.Hotel-Information",
     "https://www.hotels.com/ho136900/hilton-prague-old-town-prague-czech-republic/"
-  ],
-  "maxConcurrency": 10,
-  "proxyConfiguration": { "useApifyProxy": true, "apifyProxyGroups": ["RESIDENTIAL"] }
+  ]
 }
 ```
+
+The actor always runs through Apify residential proxies — the Mobile GraphQL API
+rejects datacenter IPs — so there is nothing to configure. Concurrency is left to
+Crawlee's autoscaling; one input URL fans out into five API calls, so a hand-set
+number mostly just raises the block rate.
 
 ### Supported URL formats
 
