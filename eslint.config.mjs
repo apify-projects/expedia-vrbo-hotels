@@ -1,4 +1,6 @@
-import apify from '@apify/eslint-config';
+import apify from '@apify/eslint-config/ts';
+import prettier from 'eslint-config-prettier';
+import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default [
@@ -15,7 +17,16 @@ export default [
     },
     ...apify,
     ...tseslint.configs.recommended,
+    // Last, so Prettier owns formatting and ESLint stops reporting it.
+    prettier,
     {
+        // The TS config carries type-aware rules, which need a program. Point at
+        // the check config so test files are covered too.
+        languageOptions: {
+            parser: tseslint.parser,
+            parserOptions: { project: 'tsconfig.check.json' },
+            globals: globals.node,
+        },
         rules: {
             '@typescript-eslint/no-explicit-any': 'off',
             // `__typename` etc. are real Expedia GraphQL field names.

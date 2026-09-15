@@ -14,6 +14,8 @@
         "typecheck": "tsc --noEmit -p tsconfig.check.json",
         "lint": "eslint src test",
         "lint:fix": "eslint src test --fix",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
         "test": "vitest run",
         "test:watch": "vitest",
         "test:smoke": "SMOKE=1 vitest run test/smoke.test.ts"
@@ -30,6 +32,9 @@
         "@apify/tsconfig": "^0.2.0",
         "@types/node": "^22.10.0",
         "eslint": "^9.18.0",
+        "eslint-config-prettier": "^10.1.8",
+        "globals": "^17.12.0",
+        "prettier": "^3.9.6",
         "tsx": "^4.19.0",
         "typescript": "^5.9.0",
         "typescript-eslint": "^8.20.0",
