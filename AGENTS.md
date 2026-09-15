@@ -83,8 +83,9 @@ expecting data:
 The offers query needs a lead time; it answers with an error rather than data for
 dates close to today, which is why the window sits a month out.
 
-`bestRating: "0"` means the property has no rating yet, not that it scored zero —
-emit `null` for both rating and review count in that case.
+`bestRating: "0"` means the property has no rating yet, not that it scored zero,
+so the row carries `rating: null`. The review count is read separately and stays
+`0` — that is the true count for an unreviewed property, not a missing value.
 
 ## Tooling worth knowing
 
