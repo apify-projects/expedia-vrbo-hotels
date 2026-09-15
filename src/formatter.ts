@@ -80,18 +80,6 @@ function pyRound1(x: number): number {
 }
 
 /**
- * Python `str(float)` — always renders integer-valued floats with a trailing
- * `.0` (e.g. 9.0 -> "9.0", 4.8 -> "4.8"). Used when building ratingText, which
- * is a string in the output.
- */
-function pyFloatStr(x: number): string {
-    const s = String(x);
-    // Only integer-valued floats need a trailing ".0"; values in the rating
-    // range never use exponential notation, so a plain dot check suffices.
-    return s.includes('.') ? s : `${s}.0`;
-}
-
-/**
  * Python `float(str)` — returns null when not parseable, mirroring the
  * try/except (ValueError) guards in the Python. Accepts leading/trailing
  * whitespace and standard float syntax. Rejects empty / NaN-like junk.
@@ -202,23 +190,22 @@ function extractTextItems(items: any): string[] {
  * Primary source: seoStructuredData -> aggregateRating.
  * Fallback for review count: "See all X reviews" pattern in the raw config str.
  *
- * Returns [ratingValue, reviewCount, ratingText].
+ * Returns [ratingValue, reviewCount].
  */
 function extractRatingFromPageLayout(
     pageLayoutData: any,
-): [number | null, number | null, string | null] {
+): [number | null, number | null] {
     if (!pyTruthy(pageLayoutData)) {
-        return [null, null, null];
+        return [null, null];
     }
 
     const configStr = safeGet(pageLayoutData, ['data', 'pageLayout', 'config']);
     if (!pyTruthy(configStr) || typeof configStr !== 'string') {
-        return [null, null, null];
+        return [null, null];
     }
 
     let ratingValue: number | null = null;
     let reviewCount: number | null = null;
-    let ratingText: string | null = null;
 
     let config: any;
     try {
@@ -275,12 +262,6 @@ function extractRatingFromPageLayout(
             const v = pyIntStrict(countStr);
             if (v !== null) reviewCount = v;
         }
-
-        // Build rating text like "9.0 out of 10".
-        const bestRating = 'bestRating' in aggregateRating ? aggregateRating.bestRating : '10';
-        if (ratingValue !== null) {
-            ratingText = `${pyFloatStr(ratingValue)} out of ${bestRating}`;
-        }
     }
 
     // Fallback: extract review count from "See all X reviews" pattern.
@@ -292,11 +273,11 @@ function extractRatingFromPageLayout(
         }
     }
 
-    return [ratingValue, reviewCount, ratingText];
+    return [ratingValue, reviewCount];
 }
 
-/** Extract numeric rating and its text representation from review summary responses. */
-function extractRating(reviewSummary: any): [number | null, string | null] {
+/** Extract the numeric rating from review summary responses, on a 10-point scale. */
+function extractRating(reviewSummary: any): number | null {
     const ratingWithMaxPattern = /(\d+(?:\.\d+)?)\s*(?:out of|\/)\s*(\d+)/;
     const numberPattern = /(\d+(?:\.\d+)?)/;
 
@@ -309,8 +290,6 @@ function extractRating(reviewSummary: any): [number | null, string | null] {
         safeGet(reviewSummary, ['overallScore', 'score']),
     ];
 
-    let ratingText: string | null =
-        candidates.find((c) => typeof c === 'string' && c.trim() !== '') ?? null;
     let ratingValue: number | null = null;
 
     // Try explicit candidates first.
@@ -351,11 +330,7 @@ function extractRating(reviewSummary: any): [number | null, string | null] {
         }
     }
 
-    if (ratingValue !== null && !pyTruthy(ratingText)) {
-        ratingText = pyFloatStr(ratingValue);
-    }
-
-    return [ratingValue, ratingText];
+    return ratingValue;
 }
 
 // ---------------------------------------------------------------------------
@@ -1533,7 +1508,7 @@ export function formatProperty(args: {
     const parentRegion = location.parentRegion || {};
 
     // Review/rating - try page layout first (most reliable), then review summary.
-    let [rating, reviewCountFromLayout, ratingText] = extractRatingFromPageLayout(pageLayoutData);
+    let [rating, reviewCountFromLayout] = extractRatingFromPageLayout(pageLayoutData);
 
     // Fall back to PropertySummary reviewSummary if page layout had no rating.
     if (rating === null) {
@@ -1543,7 +1518,7 @@ export function formatProperty(args: {
             {},
         );
         const reviewSummary = propertyDetails.reviewSummary || {};
-        [rating, ratingText] = extractRating(reviewSummary);
+        rating = extractRating(reviewSummary);
     }
 
     // Extract from PropertyContent.
@@ -1627,7 +1602,6 @@ export function formatProperty(args: {
         region: (address.province || parentRegion.name) ?? null,
         street: address.addressLine ?? null,
         rating,
-        ratingText,
         reviewCount,
         guestCount: roomSetup.guestCount,
         bedroomCount: roomSetup.bedroomCount,

@@ -147,7 +147,6 @@ export interface PropertyResult {
     region: string | null;
     street: string | null;
     rating: number | null;
-    ratingText: string | null;
     reviewCount: number | null;
     guestCount: number | null;
     bedroomCount: number | null;

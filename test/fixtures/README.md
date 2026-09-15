@@ -13,6 +13,9 @@ fake HttpClient and asserts the produced row equals `expectedRow` (ignoring the
 non-deterministic `scrapedAt`). Passing ⇒ the TS port is output-equivalent to the
 Python actor on real data.
 
+`expectedRow` is edited where we deliberately diverge from the Python output —
+`ratingText` was dropped because it shipped Expedia's doubled score verbatim.
+
 Captured live from the Python actor at the ts-rewrite cutover (2026-06-20) by the
 throwaway `spike/capture_fixtures.py` (removed with the rest of the Python at
 cutover; see git history before the cutover commit to regenerate). Covered:
