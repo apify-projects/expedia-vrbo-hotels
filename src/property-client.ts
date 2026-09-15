@@ -78,11 +78,17 @@ function fmtUtc(d: Date): string {
     return `${y}-${m}-${day}`;
 }
 
-/** Default check-in (tomorrow) and check-out (2 nights later), UTC. */
+const LEAD_DAYS = 30;
+const NIGHTS = 3;
+
+/**
+ * The offers query answers with an error, not data, for dates close to today,
+ * so the window sits a month out.
+ */
 function getDefaultDates(): [string, string] {
-    const tomorrow = new Date(Date.now() + 86_400_000);
-    const checkout = new Date(tomorrow.getTime() + 2 * 86_400_000);
-    return [fmtUtc(tomorrow), fmtUtc(checkout)];
+    const checkIn = new Date(Date.now() + LEAD_DAYS * 86_400_000);
+    const checkOut = new Date(checkIn.getTime() + NIGHTS * 86_400_000);
+    return [fmtUtc(checkIn), fmtUtc(checkOut)];
 }
 
 const ACCEPT = 'multipart/mixed;deferSpec=20220824, application/graphql-response+json, application/json';

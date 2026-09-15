@@ -9,6 +9,8 @@
  * Faithful port of `main.py`'s scrape_property / scrape_vrbo / scrape_expedia /
  * scrape_hotels.
  */
+import { log } from 'crawlee';
+
 import { URLParseError } from './errors.js';
 import { formatProperty } from './formatter.js';
 import type { HttpClient } from './http/http-client.js';
@@ -56,6 +58,9 @@ async function fetchAndFormat(
         client.fetchPropertyOffers(propertyId),
         client.fetchPageLayout(propertyId),
     ]);
+    const offersError = offersData?.data?.propertyOffers?.errorMessage?.title?.text;
+    if (offersError) log.debug(`No offers for property ${propertyId}: ${offersError}`);
+
     return formatProperty({ summaryData, contentData, url, propertyId, platform, galleryData, offersData, pageLayoutData });
 }
 
