@@ -15,4 +15,6 @@ docs
 *.py
 *.log
 CONTEXT.md
-AGENT.md
+AGENTS.md
+CLAUDE.md
+PLAN.md
