@@ -2,8 +2,8 @@
  * Actor entry point.
  *
  * One input URL becomes one queue entry, routed by Platform, producing exactly
- * one dataset row: the routes push success rows, the failedRequestHandler pushes
- * error rows. The crawler owns the HTTP client, proxy, session pool and retries;
+ * one dataset item: the routes push success items, the failedRequestHandler pushes
+ * error items. The crawler owns the HTTP client, proxy, session pool and retries;
  * handlers reach the GraphQL endpoint through `context.sendRequest`, so all of a
  * property's calls share that request's sticky residential IP.
  */
@@ -36,7 +36,7 @@ function parseInputUrl(raw: string): string | null {
     }
 }
 
-/** Best-effort id + Platform tag for an error row. */
+/** Best-effort id + Platform tag for an error item. */
 function errorRowMeta(url: string): { id: string; platform: Platform | null } {
     const platform = detectPlatform(url);
     if (!platform) return { id: 'unknown', platform: null };
@@ -115,8 +115,8 @@ const crawler = new CheerioCrawler({
     // aborts slow proxies.
     requestHandlerTimeoutSecs: 180,
 
-    // Single source of every error row → preserves the one-row-per-URL invariant.
-    // Crawlee already logs the failure itself, so this only writes the row.
+    // Single source of every error item → preserves the one-item-per-URL invariant.
+    // Crawlee already logs the failure itself, so this only writes the item.
     async failedRequestHandler({ request }: CheerioCrawlingContext, error: Error) {
         const { id, platform } = errorRowMeta(request.url);
         await Actor.pushData(formatError(request.url, id, error.message, platform));

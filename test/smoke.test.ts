@@ -66,10 +66,10 @@ async function scrapeLive(platform: Platform, propertyId: string, url: string, a
 describe.skipIf(!enabled)('live smoke (opt-in: SMOKE=1)', () => {
     for (const testCase of cases) {
         it(`scrapes a real ${testCase.platform} property`, async () => {
-            const row = await scrapeLive(testCase.platform, testCase.propertyId, testCase.url);
-            expect(row.name?.length).toBeTruthy();
-            expect(row.platform).toBe(testCase.platform);
-            expect(row.id).toBe(testCase.propertyId);
+            const item = await scrapeLive(testCase.platform, testCase.propertyId, testCase.url);
+            expect(item.name?.length).toBeTruthy();
+            expect(item.platform).toBe(testCase.platform);
+            expect(item.id).toBe(testCase.propertyId);
         }, 120_000);
     }
 });

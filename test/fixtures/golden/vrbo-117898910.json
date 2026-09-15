@@ -3871,7 +3871,7 @@
       }
     }
   },
-  "expectedRow": {
+  "expectedItem": {
     "platform": "vrbo",
     "url": "https://www.vrbo.com/117898910",
     "id": "117898910",

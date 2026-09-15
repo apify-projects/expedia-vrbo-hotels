@@ -2,7 +2,7 @@
  * Output formatter for Vrbo / Expedia / Hotels.com property details.
  *
  * Turns the raw PropertySummary / PropertyContent / ProductGallery /
- * PropertyOffers / TemplatePageLayout responses into one dataset row. The
+ * PropertyOffers / TemplatePageLayout responses into one dataset item. The
  * fallback order between those sources is load-bearing: several fields have a
  * second source, used only when the first is empty.
  *
@@ -12,7 +12,7 @@
 import type {
     AmenityCategory,
     BedType,
-    ErrorRow,
+    ErrorItem,
     Feature,
     HighlightedAmenity,
     HouseRules,
@@ -1337,7 +1337,7 @@ export function formatProperty(args: {
     };
 }
 
-export function formatError(url: string, propertyId: string, error: string, platform: Platform | null): ErrorRow {
+export function formatError(url: string, propertyId: string, error: string, platform: Platform | null): ErrorItem {
     return {
         platform,
         url,

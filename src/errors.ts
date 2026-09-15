@@ -4,7 +4,7 @@
  * The input-level ones extend Crawlee's NonRetryableError so a terminal failure
  * (unsupported URL, delisted listing, dead property id) fails fast instead of
  * burning retries, and lands in the single failedRequestHandler that emits the
- * one error row.
+ * one error item.
  *
  * They also overwrite `stack` with just their message: Crawlee logs error.stack
  * verbatim, and these report bad input rather than a crash, so the internal

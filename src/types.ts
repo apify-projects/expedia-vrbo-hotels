@@ -1,7 +1,7 @@
 /**
- * The dataset row shapes `formatter.ts` produces.
+ * The dataset item shapes `formatter.ts` produces.
  *
- * Field order is the row's column order, and the null-vs-absent distinction is
+ * Field order is the item's column order, and the null-vs-absent distinction is
  * deliberate: a null field is one the API did not fill, an absent one is a field
  * that code path never builds.
  */
@@ -93,7 +93,7 @@ export interface PropertyUnit {
     bedTypes?: BedType[] | null;
 }
 
-/** The success row returned by `formatProperty`. */
+/** The success item returned by `formatProperty`. */
 export interface PropertyResult {
     platform: Platform;
     url: string;
@@ -123,8 +123,8 @@ export interface PropertyResult {
     scrapedAt: string;
 }
 
-/** The error row returned by `formatError`. */
-export interface ErrorRow {
+/** The error item returned by `formatError`. */
+export interface ErrorItem {
     platform: Platform | null;
     url: string;
     id: string;

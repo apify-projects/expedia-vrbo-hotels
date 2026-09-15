@@ -1,6 +1,6 @@
 /**
- * Error paths: every one asserts a THROW, so the route pushes no success row and
- * the single error row comes from the failedRequestHandler.
+ * Error paths: every one asserts a THROW, so the route pushes no success item and
+ * the single error item comes from the failedRequestHandler.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -103,7 +103,7 @@ describe('block detection → BlockedResponseError, so the session rotates', () 
     });
 });
 
-describe('formatError → one structured error row', () => {
+describe('formatError → one structured error item', () => {
     it('reports the platform as its machine value', () => {
         expect(formatError('https://www.vrbo.com/x', '123', 'boom', 'vrbo').platform).toBe('vrbo');
         expect(formatError('https://www.expedia.co.uk/x', '1', 'boom', 'expedia').platform).toBe('expedia');
@@ -115,9 +115,9 @@ describe('formatError → one structured error row', () => {
     });
 
     it('carries platform, url, id, error + a scrapedAt timestamp', () => {
-        const row = formatError('https://www.vrbo.com/x', '123', 'boom', 'vrbo');
-        expect(row).toMatchObject({ platform: 'vrbo', url: 'https://www.vrbo.com/x', id: '123', error: 'boom' });
-        expect(typeof row.scrapedAt).toBe('string');
-        expect(Object.keys(row).sort()).toEqual(['error', 'id', 'platform', 'scrapedAt', 'url']);
+        const item = formatError('https://www.vrbo.com/x', '123', 'boom', 'vrbo');
+        expect(item).toMatchObject({ platform: 'vrbo', url: 'https://www.vrbo.com/x', id: '123', error: 'boom' });
+        expect(typeof item.scrapedAt).toBe('string');
+        expect(Object.keys(item).sort()).toEqual(['error', 'id', 'platform', 'scrapedAt', 'url']);
     });
 });

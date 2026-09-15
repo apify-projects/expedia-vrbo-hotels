@@ -7,7 +7,7 @@ Crawlee guidance is deliberately not repeated here.
 
 `main.ts` validates and de-duplicates the input URLs, then hands them to the
 router in `routes.ts`, which has one handler per Platform. A handler resolves the
-Property ID, calls `property-client.ts` for the GraphQL data, and pushes one row
+Property ID, calls `property-client.ts` for the GraphQL data, and pushes one item
 built by `formatter.ts`. `resolvers.ts` is pure parsing - it never makes a
 request.
 
@@ -29,8 +29,8 @@ identities (Vrbo and Expedia) over the same schema, selected by `Profile` in
 - The five GraphQL calls for one Property must share one IP, so they go through
   `context.sendRequest` rather than becoming queue entries. They also total
   ~760 KB, far past what `userData` can carry between requests.
-- One input URL produces exactly one dataset row. Handlers push success rows;
-  every error row comes from the single `failedRequestHandler` in `main.ts`.
+- One input URL produces exactly one dataset item. Handlers push success items;
+  every error item comes from the single `failedRequestHandler` in `main.ts`.
 
 ## Which requests fetch a page
 
@@ -71,7 +71,7 @@ expecting data:
 - **Host and tagline.** `aboutThisHost` is `null` even with
   `useNewHostSection: true`.
 - **Vrbo amenities.** `amenitiesSummary` and `detailedAmenitiesContent` are
-  `null` for Vrbo, so those rows carry `[]`. The extractors are correct.
+  `null` for Vrbo, so those items carry `[]`. The extractors are correct.
 - **Vrbo `reviewSummary`.** Always `null`, which is why `TemplatePageLayout` is
   fetched **for Vrbo only** - it is the sole source of Vrbo's review count, and
   for the other platforms it is ~430 KB that changes nothing.
@@ -80,7 +80,7 @@ The offers query needs a lead time; it answers with an error rather than data fo
 dates close to today, which is why the window sits a month out.
 
 `bestRating: "0"` means the property has no rating yet, not that it scored zero,
-so the row carries `rating: null`. The review count is read separately and stays
+so the item carries `rating: null`. The review count is read separately and stays
 `0` - that is the true count for an unreviewed property, not a missing value.
 
 ## Tooling worth knowing

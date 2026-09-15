@@ -5,11 +5,11 @@ Property URL:
 
 - `graphql` — the GraphQL responses keyed by operationName,
 - `prefetch` — HTML captured for that URL, keyed by absolute URL,
-- `expectedRow` — the row this actor produces for it, reviewed by hand.
+- `expectedItem` — the item this actor produces for it, reviewed by hand.
 
 The test replays `graphql` through the real pipeline via a fake HttpClient, then
-checks the row two ways: invariants that must hold for any Property, and equality
-with `expectedRow` (ignoring the non-deterministic `scrapedAt`).
+checks the item two ways: invariants that must hold for any Property, and equality
+with `expectedItem` (ignoring the non-deterministic `scrapedAt`).
 
 ## Provenance, honestly
 
@@ -17,10 +17,10 @@ Captured live at the TypeScript cutover (2026-06-20) from the Python actor this
 one replaces, by the throwaway `spike/capture_fixtures.py` — removed with the rest
 of the Python, so see git history before the cutover commit to regenerate.
 
-`expectedRow` began as the Python actor's output and is no longer it. The rows
+`expectedItem` began as the Python actor's output and is no longer it. The items
 were edited as the output deliberately changed: `ratingText` dropped, `host`,
 `tagline` and unit prices dropped, `0` and `""` replaced with `null`, `source`
-renamed to `platform`. So treat `expectedRow` as a reviewed snapshot of this
+renamed to `platform`. So treat `expectedItem` as a reviewed snapshot of this
 actor's own output rather than an independent oracle — the invariants are what
 catch a wrong value, the equality check catches an unintended one.
 
@@ -30,7 +30,7 @@ Covered: Expedia (`525006`), Hotels.com (`ho136900` → Expedia `21856`), and Vr
 ## Two things that look like gaps
 
 `TemplatePageLayout` is captured for all three Platforms even though only Vrbo
-requests it now. For the others it is ~430 KB that changes nothing in the row, and
+requests it now. For the others it is ~430 KB that changes nothing in the item, and
 the test asserts they no longer ask for it.
 
 Vrbo has no `prefetch`. What was captured there was the Vrbo homepage, because

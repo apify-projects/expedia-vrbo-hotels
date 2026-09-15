@@ -1,6 +1,6 @@
 /**
  * One route per Platform, plus one that follows a short link and re-enqueues the
- * destination. Each property route produces exactly one dataset row; error rows
+ * destination. Each property route produces exactly one dataset item; error items
  * come from main's failedRequestHandler.
  *
  * Requests whose page we actually need (Hotels.com, legacy Vrbo) are navigated
@@ -65,7 +65,7 @@ function buildClient(platform: Platform, url: string, sendRequest: SendRequest):
     return new PropertyClient({ profile: makeExpediaProfile(site), site, sendRequest });
 }
 
-/** Fetch everything for one property and format the single output row. */
+/** Fetch everything for one property and format the single output item. */
 export async function scrapeProperty({ url, platform, propertyId, sendRequest }: ScrapeArgs): Promise<PropertyResult> {
     const client = buildClient(platform, url, sendRequest);
     const [summaryData, contentData, galleryData, offersData, pageLayoutData] = await Promise.all([
@@ -116,14 +116,14 @@ router.addHandler(LABELS.VRBO, async ({ request, $, sendRequest, log }) => {
         propertyId = findVrboPropertyId($, parsedId);
     }
 
-    const row = await scrapeProperty({ url: request.url, platform: 'vrbo', propertyId, sendRequest });
-    await pushRow(row, request.url, log);
+    const item = await scrapeProperty({ url: request.url, platform: 'vrbo', propertyId, sendRequest });
+    await pushItem(item, request.url, log);
 });
 
 router.addHandler(LABELS.EXPEDIA, async ({ request, sendRequest, log }) => {
     const [propertyId] = extractPropertyId(request.url);
-    const row = await scrapeProperty({ url: request.url, platform: 'expedia', propertyId, sendRequest });
-    await pushRow(row, request.url, log);
+    const item = await scrapeProperty({ url: request.url, platform: 'expedia', propertyId, sendRequest });
+    await pushItem(item, request.url, log);
 });
 
 router.addHandler(LABELS.HOTELS_COM, async ({ request, $, sendRequest, log }) => {
@@ -138,13 +138,13 @@ router.addHandler(LABELS.HOTELS_COM, async ({ request, $, sendRequest, log }) =>
         throw new URLParseError(`Hotels.com page loaded but contained no Expedia property ID: ${request.url}`);
     }
 
-    const row = await scrapeProperty({ url: request.url, platform: 'hotels.com', propertyId: expediaId, sendRequest });
-    await pushRow(row, request.url, log);
+    const item = await scrapeProperty({ url: request.url, platform: 'hotels.com', propertyId: expediaId, sendRequest });
+    await pushItem(item, request.url, log);
 });
 
-async function pushRow(row: PropertyResult, url: string, log: Log): Promise<void> {
-    await Actor.pushData(row);
-    log.info(`Scraped ${row.name} (${url})`);
+async function pushItem(item: PropertyResult, url: string, log: Log): Promise<void> {
+    await Actor.pushData(item);
+    log.info(`Scraped ${item.name} (${url})`);
 }
 
 /**
