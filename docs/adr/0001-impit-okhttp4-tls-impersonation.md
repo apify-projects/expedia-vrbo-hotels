@@ -18,6 +18,27 @@ fingerprint (JA4 differs from the exact `okhttp4_android_13`), so **pin the impi
 version** — an upgrade re-opens this gate — and keep the `node-tls-client`
 fallback documented below. Full evidence: `spike/RESULTS.md`.
 
+## Re-check (2026-09-14): the headline claim no longer reproduces
+
+Six signed `PropertySummary` requests per fingerprint, against both endpoints
+from a single IP:
+
+| fingerprint | expedia.com/graphql | vrbo.com/graphql |
+| --- | --- | --- |
+| `okhttp4` | 6/6 | 6/6 |
+| `chrome` | 6/6 | 6/6 |
+| `firefox` | 6/6 | 6/6 |
+| impit default (no `browser`) | 0/6, all 429 | 0/6, all 429 |
+
+So the binding constraint looks like "present *a* recognised TLS fingerprint",
+not "present okhttp4 specifically" — impit's bare default is what gets blocked.
+
+This is one IP at one moment, against the spike's twelve fresh residential IPs,
+so it does not overturn the spike: the chrome 429s there may have been IP
+reputation. But since the exact `impit` pin and the residential-only requirement
+both rest on the original claim, re-run the spike's 12-IP method before hardening
+anything else on it. `okhttp4` stays the configured target either way.
+
 ## Considered Options
 
 - **node-tls-client** (Go tls-client wrapper, exact `okhttp4_android_13` match) —

@@ -7,11 +7,14 @@ thread. The TypeScript port deletes all of that and leans on Crawlee instead:
 
 - **Resume** = Crawlee RequestQueue persists handled requests across
   abort/migration and dedups by URL; resurrected runs skip done Properties for free.
-- **Terminal-row invariant** = the requestHandler pushes success rows only; all
-  error rows come from a single `failedRequestHandler`. One handled request = one row.
-- **Concurrency** = AutoscaledPool runs URLs in parallel up to a configurable max,
-  with one sticky residential session (IP) per URL via the SessionPool; a blocked
-  (empty-body) response retires the session so the retry lands a fresh IP.
+- **One-row invariant** = the platform routes push success rows only; all error
+  rows come from a single `failedRequestHandler`. A short link is the one input
+  that becomes two requests — it resolves, then re-enqueues its destination — and
+  only the second one writes a row.
+- **Concurrency** = AutoscaledPool decides it; there is no input for it, because
+  one URL fans out into several API calls and a hand-set number mostly raises the
+  block rate. One sticky residential session (IP) per request via the SessionPool;
+  a blocked response retires the session so the retry lands a fresh IP.
 
 ## Consequences
 
