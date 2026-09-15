@@ -21,13 +21,13 @@ import {
 } from './property-client.js';
 import {
     convertHotelsComToExpedia,
+    isResolvableUrl,
     resolveLegacyPropertyId,
     resolveShortUrl,
 } from './resolvers.js';
 import { detectExpediaSite,EXPEDIA_SITE_CONFIGS, VRBO_SITE_CONFIGS } from './site-configs.js';
 import type { PropertyResult } from './types.js';
 import {
-    detectPlatform,
     extractPropertyId,
     extractVrboPropertyId,
     type Platform,
@@ -107,10 +107,19 @@ async function scrapeHotels(url: string, deps: ScrapeDeps): Promise<PropertyResu
  */
 export async function scrapeProperty(rawUrl: string, deps: ScrapeDeps): Promise<PropertyResult> {
     const url = await resolveShortUrl(rawUrl, deps.makeClient('graphql'));
-    const platform = detectPlatform(url);
+    // resolveShortUrl hands back its input when the link cannot be followed.
+    if (isResolvableUrl(url)) throw new URLParseError(`Could not resolve short link: ${rawUrl}`);
 
-    if (platform === 'vrbo') return scrapeVrbo(url, deps);
-    if (platform === 'expedia') return scrapeExpedia(url, deps);
-    if (platform === 'hotels.com') return scrapeHotels(url, deps);
-    throw new URLParseError(`Unsupported platform for URL: ${url}`);
+    // extractPropertyId distinguishes an unsupported domain from a supported one
+    // that is not a property page; detectPlatform would flatten both to null.
+    const [, platform] = extractPropertyId(url);
+    switch (platform) {
+        case 'vrbo': return scrapeVrbo(url, deps);
+        case 'expedia': return scrapeExpedia(url, deps);
+        case 'hotels.com': return scrapeHotels(url, deps);
+        default: {
+            const unhandled: never = platform;
+            throw new URLParseError(`Unsupported platform: ${String(unhandled)}`);
+        }
+    }
 }

@@ -24,6 +24,22 @@ interface ActorInput {
     urls: string[];
 }
 
+/**
+ * Accept a pasted URL, adding the scheme when it is missing. Returns null when
+ * the entry cannot be a property URL at all.
+ */
+function parseInputUrl(raw: string): string | null {
+    const trimmed = raw.trim();
+    const candidate = /^[a-z][a-z0-9+.-]*:/i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    try {
+        const { protocol, hostname, href } = new URL(candidate);
+        if (protocol !== 'http:' && protocol !== 'https:') return null;
+        return hostname === '' ? null : href;
+    } catch {
+        return null;
+    }
+}
+
 /** Best-effort id + Platform tag for an error row. */
 function errorRowMeta(url: string): { id: string; platform: Platform | null } {
     const platform = detectPlatform(url);
@@ -76,9 +92,27 @@ const crawler = new BasicCrawler({
     },
 });
 
-log.info(`Processing ${urls.length} URLs`);
+const usableUrls: string[] = [];
+const invalidUrls: string[] = [];
+for (const raw of urls) {
+    const url = parseInputUrl(raw);
+    if (url === null) invalidUrls.push(raw);
+    else usableUrls.push(url);
+}
+
+if (invalidUrls.length > 0) {
+    log.warning(`Skipping ${invalidUrls.length} of ${urls.length} inputs that are not valid URLs`);
+    for (const raw of invalidUrls) {
+        await Actor.pushData(formatError(raw, 'unknown', 'Not a valid URL. Expected an absolute http(s) URL.', null));
+    }
+}
+if (usableUrls.length === 0) {
+    await Actor.fail(`None of the ${urls.length} input URLs are valid.`);
+}
+
+log.info(`Processing ${usableUrls.length} URLs`);
 // RequestQueue dedups by URL and persists handled requests across abort/migration,
 // so a resurrected run skips already-scraped Properties for free (ADR-0003).
-await crawler.run(urls);
+await crawler.run(usableUrls);
 
 await Actor.exit();
