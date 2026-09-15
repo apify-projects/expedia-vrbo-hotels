@@ -50,7 +50,7 @@ Prices are **not** available from this API — the offers response returns them 
 - **HTTP**: [impit](https://github.com/apify/impit) impersonating the `okhttp4`
   Android TLS fingerprint (validated against the live endpoint before the build).
 - **Concurrency, retries, resume**: [Crawlee](https://crawlee.dev)'s
-  `BasicCrawler` — one sticky residential IP per URL; an aborted/migrated run
+  `CheerioCrawler` — one sticky residential IP per URL; an aborted/migrated run
   resumes and skips already-scraped properties.
 - **Per property**: ID resolution → 5 parallel GraphQL fetches → response
   validation → output formatting.

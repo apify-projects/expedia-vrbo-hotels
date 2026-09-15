@@ -9,7 +9,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
-import type { HttpCrawlingContext } from 'crawlee';
+import type { CheerioCrawlingContext } from 'crawlee';
 
 import { getSignedHeaders } from './auth.js';
 import { BlockedResponseError, PropertyNotFoundError } from './errors.js';
@@ -27,7 +27,7 @@ import type { ExpediaSiteConfig, VrboSiteConfig } from './site-configs.js';
  * Crawlee's `sendRequest` carries the crawling context's proxy URL and session,
  * so every call a handler makes shares that request's sticky residential IP.
  */
-export type SendRequest = HttpCrawlingContext['sendRequest'];
+export type SendRequest = CheerioCrawlingContext['sendRequest'];
 
 interface AbacusOverride {
     bucket: number;

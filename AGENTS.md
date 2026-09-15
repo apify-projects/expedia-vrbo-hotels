@@ -11,14 +11,6 @@ Property ID, calls `property-client.ts` for the GraphQL data, and pushes one row
 built by `formatter.ts`. `resolvers.ts` is pure parsing — it never makes a
 request.
 
-The crawler is `HttpCrawler` rather than `CheerioCrawler` because the GraphQL
-responses are JSON; Cheerio is used directly in `resolvers.ts`, where there is
-real HTML. Resume and concurrency are Crawlee's, and there is no concurrency
-input because one URL fans out into five calls.
-
-Run it locally with `apify run`, which reads
-`storage/key_value_stores/default/INPUT.json`.
-
 ## The API
 
 It is the Expedia Group mobile app's GraphQL endpoint, not a public API. Two app
@@ -93,9 +85,6 @@ so the row carries `rating: null`. The review count is read separately and stays
 
 ## Tooling worth knowing
 
-- `npm run typecheck` uses `tsconfig.check.json` so it covers `test/` too. The
-  build still uses `tsconfig.json` and emits `src` only.
-- ESLint runs the `@apify/eslint-config/ts` entry with type-aware rules, pointed
-  at the same check config.
-- Prettier skips markdown (prose is hand-wrapped), `src/queries.ts`, and the
-  golden fixtures.
+`npm run typecheck` uses `tsconfig.check.json` so it covers `test/` too; the
+build uses `tsconfig.json` and emits `src` only. `cheerio` is a dev dependency
+only — at runtime `$` comes from the crawler.

@@ -6,11 +6,12 @@ import {
     assertVrboDetailPage,
     extractExpediaIdFromUrl,
     findDestinationUrl,
-    findExpediaIdInHtml,
+    findExpediaId,
     findVrboPropertyId,
     isResolvableUrl,
     needsIdResolution,
 } from '../src/resolvers.js';
+import { loadPage } from './load-page.js';
 
 describe('needsIdResolution — which Vrbo URLs carry a legacy id', () => {
     it.each([
@@ -28,15 +29,24 @@ describe('needsIdResolution — which Vrbo URLs carry a legacy id', () => {
 describe('findVrboPropertyId', () => {
     it('resolves the internal id from the og:image lodging path', () => {
         const html = '<img src="https://media.vrbo.com/lodging/118000000/117900000/117899000/117898910/abc.jpg">';
-        expect(findVrboPropertyId(html, '11887139')).toBe('117898910');
+        expect(findVrboPropertyId(loadPage(html), '11887139')).toBe('117898910');
     });
 
-    it('resolves from the meta itemprop identifier', () => {
-        expect(findVrboPropertyId('<meta itemprop="identifier" content="117898910"/>', '11887139')).toBe('117898910');
+    it('resolves from the meta itemprop identifier, in either attribute order', () => {
+        expect(findVrboPropertyId(loadPage('<meta itemprop="identifier" content="117898910"/>'), '11887139')).toBe(
+            '117898910',
+        );
+        expect(findVrboPropertyId(loadPage('<meta content="117898910" itemprop="identifier"/>'), '11887139')).toBe(
+            '117898910',
+        );
+    });
+
+    it('resolves from a data-property-id attribute', () => {
+        expect(findVrboPropertyId(loadPage('<div data-property-id="117898910"></div>'), '11887139')).toBe('117898910');
     });
 
     it('returns the original id when nothing matches', () => {
-        expect(findVrboPropertyId('<html>no ids</html>', '4084796')).toBe('4084796');
+        expect(findVrboPropertyId(loadPage('<html>no ids</html>'), '4084796')).toBe('4084796');
     });
 });
 
@@ -57,21 +67,25 @@ describe('assertVrboDetailPage', () => {
 
 describe('findDestinationUrl', () => {
     it('uses the landing URL once redirects have been followed', () => {
-        expect(findDestinationUrl('https://www.vrbo.com/117898910', '')).toBe('https://www.vrbo.com/117898910');
+        expect(findDestinationUrl('https://www.vrbo.com/117898910', loadPage(''))).toBe(
+            'https://www.vrbo.com/117898910',
+        );
     });
 
     it('reads browser_fallback_url out of a Branch.io interstitial', () => {
         const html = 'x browser_fallback_url=https%3A%2F%2Fwww.vrbo.com%2F117898910 y';
-        expect(findDestinationUrl('https://t.vrbo.io/abc', html)).toBe('https://www.vrbo.com/117898910');
+        expect(findDestinationUrl('https://t.vrbo.io/abc', loadPage(html))).toBe('https://www.vrbo.com/117898910');
     });
 
     it('falls back to a property URL embedded in the page', () => {
         const html = '<a href="https://www.vrbo.com/117898910">open</a>';
-        expect(findDestinationUrl('https://t.vrbo.io/abc', html)).toBe('https://www.vrbo.com/117898910');
+        expect(findDestinationUrl('https://t.vrbo.io/abc', loadPage(html))).toBe('https://www.vrbo.com/117898910');
     });
 
     it('returns null when the link goes nowhere useful', () => {
-        expect(findDestinationUrl('https://t.vrbo.io/abc', '<h1>That link could not be found</h1>')).toBeNull();
+        expect(
+            findDestinationUrl('https://t.vrbo.io/abc', loadPage('<h1>That link could not be found</h1>')),
+        ).toBeNull();
     });
 
     it('isResolvableUrl detects short/deep links', () => {
@@ -89,15 +103,15 @@ describe('Hotels.com id conversion', () => {
     });
 
     it('extracts the id from the itemProp identifier meta', () => {
-        expect(findExpediaIdInHtml('<meta itemProp="identifier" content="21856"/>')).toBe('21856');
+        expect(findExpediaId(loadPage('<meta itemprop="identifier" content="21856"/>'))).toBe('21856');
     });
 
     it('picks the most frequent productId', () => {
-        expect(findExpediaIdInHtml('productId=111 productId=222 productId=222')).toBe('222');
+        expect(findExpediaId(loadPage('<script>productId=111 productId=222 productId=222</script>'))).toBe('222');
     });
 
     it('returns null when the page carries no id', () => {
-        expect(findExpediaIdInHtml('<html>a real page, just no ids</html>')).toBeNull();
+        expect(findExpediaId(loadPage('<html>a real page, just no ids</html>'))).toBeNull();
     });
 
     it('throws HotelsComDelistedError when the listing redirected away from /ho', () => {

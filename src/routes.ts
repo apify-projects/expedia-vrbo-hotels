@@ -8,7 +8,7 @@
  * The rest set `skipNavigation` and talk only to the GraphQL endpoint.
  */
 import { Actor } from 'apify';
-import { createHttpRouter, type HttpCrawlingContext } from 'crawlee';
+import { type CheerioAPI, createCheerioRouter, type Log } from 'crawlee';
 
 import { BlockedResponseError, URLParseError } from './errors.js';
 import { formatProperty } from './formatter.js';
@@ -18,7 +18,7 @@ import {
     assertVrboDetailPage,
     extractExpediaIdFromUrl,
     findDestinationUrl,
-    findExpediaIdInHtml,
+    findExpediaId,
     findVrboPropertyId,
     HOMEAWAY_HTML_HEADERS,
     HOTELS_COM_HEADERS,
@@ -87,17 +87,16 @@ export async function scrapeProperty({ url, platform, propertyId, sendRequest }:
     });
 }
 
-/** A 200 with nothing in it is this target's soft-block shape. */
-export function assertNonEmptyBody(body: string | undefined, url: string): string {
-    if (!body?.trim()) throw new BlockedResponseError(`Empty body from ${url} — soft-block`);
-    return body;
+/** This target soft-blocks with a 200 that is empty, or a bare html skeleton. */
+export function assertPageHasContent($: CheerioAPI, url: string): void {
+    if (!$.root().text().trim()) throw new BlockedResponseError(`Empty page from ${url} — soft-block`);
 }
 
-export const router = createHttpRouter();
+export const router = createCheerioRouter();
 
-router.addHandler(LABELS.SHORT_LINK, async ({ request, body, log, addRequests }) => {
-    const html = assertNonEmptyBody(body?.toString(), request.url);
-    const destination = findDestinationUrl(request.loadedUrl ?? request.url, html);
+router.addHandler(LABELS.SHORT_LINK, async ({ request, $, log, addRequests }) => {
+    assertPageHasContent($, request.url);
+    const destination = findDestinationUrl(request.loadedUrl ?? request.url, $);
     if (!destination) throw new URLParseError(`Could not resolve short link: ${request.url}`);
 
     const [, platform] = extractPropertyId(destination);
@@ -105,16 +104,16 @@ router.addHandler(LABELS.SHORT_LINK, async ({ request, body, log, addRequests })
     await addRequests([buildPropertyRequest(destination, platform)]);
 });
 
-router.addHandler(LABELS.VRBO, async ({ request, body, sendRequest, log }) => {
+router.addHandler(LABELS.VRBO, async ({ request, $, sendRequest, log }) => {
     // Always scrape via vrbo.com — regional endpoints can return wrong data.
     const [parsedId, suffix] = extractVrboPropertyId(request.url);
     if (!parsedId) throw new URLParseError(`Could not extract property ID from Vrbo URL: ${request.url}`);
 
     let propertyId = parsedId;
     if (needsIdResolution(request.url, suffix ?? '')) {
-        const html = assertNonEmptyBody(body?.toString(), request.url);
+        assertPageHasContent($, request.url);
         assertVrboDetailPage(request.loadedUrl ?? request.url, parsedId);
-        propertyId = findVrboPropertyId(html, parsedId);
+        propertyId = findVrboPropertyId($, parsedId);
     }
 
     const row = await scrapeProperty({ url: request.url, platform: 'vrbo', propertyId, sendRequest });
@@ -127,13 +126,13 @@ router.addHandler(LABELS.EXPEDIA, async ({ request, sendRequest, log }) => {
     await pushRow(row, request.url, log);
 });
 
-router.addHandler(LABELS.HOTELS_COM, async ({ request, body, sendRequest, log }) => {
+router.addHandler(LABELS.HOTELS_COM, async ({ request, $, sendRequest, log }) => {
     // Hotels.com uses different ids than Expedia; the page carries the mapping.
     let expediaId = extractExpediaIdFromUrl(request.url);
     if (!expediaId) {
-        const html = assertNonEmptyBody(body?.toString(), request.url);
+        assertPageHasContent($, request.url);
         assertHotelsComListed(request.url, request.loadedUrl ?? request.url);
-        expediaId = findExpediaIdInHtml(html);
+        expediaId = findExpediaId($);
     }
     if (!expediaId) {
         throw new URLParseError(`Hotels.com page loaded but contained no Expedia property ID: ${request.url}`);
@@ -143,7 +142,7 @@ router.addHandler(LABELS.HOTELS_COM, async ({ request, body, sendRequest, log })
     await pushRow(row, request.url, log);
 });
 
-async function pushRow(row: PropertyResult, url: string, log: HttpCrawlingContext['log']): Promise<void> {
+async function pushRow(row: PropertyResult, url: string, log: Log): Promise<void> {
     await Actor.pushData(row);
     log.info(`Scraped ${row.name} (${url})`);
 }

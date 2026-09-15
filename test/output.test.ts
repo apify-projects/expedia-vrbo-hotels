@@ -16,10 +16,11 @@ import { fileURLToPath } from 'node:url';
 
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { findExpediaIdInHtml } from '../src/resolvers.js';
+import { findExpediaId } from '../src/resolvers.js';
 import { scrapeProperty } from '../src/routes.js';
 import type { Platform } from '../src/url-parser.js';
 import { fakeSendRequest } from './fake-send-request.js';
+import { loadPage } from './load-page.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const GOLDEN = join(HERE, 'fixtures', 'golden');
@@ -164,6 +165,6 @@ describe('id resolution against a real captured page', () => {
     it('reads the expedia id out of the hotels.com page', () => {
         const fx = fixtureFor('hotels.com');
         const [html] = Object.values(fx.prefetch);
-        expect(findExpediaIdInHtml(html)).toBe(fx.expectedRow.id);
+        expect(findExpediaId(loadPage(html))).toBe(fx.expectedRow.id);
     });
 });

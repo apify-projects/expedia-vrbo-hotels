@@ -4,11 +4,11 @@
  *  - a legacy HomeAway page -> the internal VRBO Property ID;
  *  - a Hotels.com page -> the Expedia Property ID.
  *
- * The embedded-JSON / og:image / frequency-counted patterns stay as regex on
- * purpose: they read minified app state and pick the most frequent id, which a
- * DOM parser cannot reproduce.
+ * Both id readers start from `og:image`, whose path carries the id of the
+ * property the page is actually about. The fallbacks read script contents, where
+ * the id appears in minified app state that has no markup to select.
  */
-import * as cheerio from 'cheerio';
+import type { CheerioAPI } from 'crawlee';
 
 import { HotelsComDelistedError, PropertyNotFoundError } from './errors.js';
 import { VRBO_SITE_CONFIGS } from './site-configs.js';
@@ -42,6 +42,22 @@ export const HOTELS_COM_HEADERS = {
     'Sec-Fetch-Site': 'none',
 };
 
+/** `…/lodging/1000000/30000/21900/21856/photo.jpg` -> `21856`. */
+function idFromLodgingPath(url: string | undefined): string | null {
+    const match = /\/lodging\/\d+\/\d+\/\d+\/(\d+)\//.exec(url ?? '');
+    return match ? match[1] : null;
+}
+
+/** The property's own image, so its id belongs to this page and not to a carousel. */
+function idFromOgImage($: CheerioAPI): string | null {
+    return idFromLodgingPath($('meta[property="og:image"]').attr('content'));
+}
+
+/** Everything the page runs as script, where the app state lives. */
+function scriptText($: CheerioAPI): string {
+    return $('script').text();
+}
+
 function hostnameOf(url: string): string {
     try {
         return new URL(url).hostname.toLowerCase();
@@ -73,16 +89,30 @@ export function needsIdResolution(url: string, suffix: string): boolean {
  * redirects; Branch.io serves an interstitial instead, so fall back to the
  * destination it embeds. Null when neither yields a property URL.
  */
-export function findDestinationUrl(loadedUrl: string, html: string): string | null {
+export function findDestinationUrl(loadedUrl: string, $: CheerioAPI): string | null {
     if (looksFinal(loadedUrl) && !isResolvableUrl(loadedUrl)) return loadedUrl;
 
-    const fallback = /browser_fallback_url=([^&"'>\s]+)/.exec(html);
-    if (fallback) {
-        const decoded = decodeURIComponent(fallback[1]);
-        if (looksFinal(decoded)) return decoded;
+    // A deep link puts its destination in a link, a meta refresh or its own
+    // script state, so search each of those rather than the whole document.
+    const places = [
+        ...$('a[href]')
+            .toArray()
+            .map((link) => $(link).attr('href') ?? ''),
+        $('meta[http-equiv="refresh"]').attr('content') ?? '',
+        $.root().text(),
+    ];
+
+    for (const place of places) {
+        const fallback = /browser_fallback_url=([^&"'>\s]+)/.exec(place);
+        if (fallback) {
+            const decoded = decodeURIComponent(fallback[1]);
+            if (looksFinal(decoded)) return decoded;
+        }
     }
-    const embedded = /https?:\/\/(?:www\.)?(?:vrbo\.com|expedia\.com|hotels\.com)\/[^\s"'<>]+/.exec(html);
-    if (embedded) return embedded[0].replace(/\\+$/, '');
+    for (const place of places) {
+        const embedded = /https?:\/\/(?:www\.)?(?:vrbo\.com|expedia\.com|hotels\.com)\/[^\s"'<>]+/.exec(place);
+        if (embedded) return embedded[0].replace(/\\+$/, '');
+    }
 
     return null;
 }
@@ -98,28 +128,18 @@ export function assertVrboDetailPage(loadedUrl: string, propertyId: string): voi
 }
 
 /** The internal VRBO Property ID from a legacy listing page; the input id if absent. */
-export function findVrboPropertyId(html: string, propertyId: string): string {
-    // 1. og:image lodging path: /lodging/118000000/117900000/117899000/117898910/image.jpg
-    let match = /\/lodging\/\d+\/\d+\/\d+\/(\d+)\//.exec(html);
-    if (match && match[1] !== propertyId) return match[1];
+export function findVrboPropertyId($: CheerioAPI, propertyId: string): string {
+    const fromImage = idFromOgImage($) ?? idFromLodgingPath($('img[src*="/lodging/"]').first().attr('src'));
+    if (fromImage && fromImage !== propertyId) return fromImage;
 
-    const $ = cheerio.load(html);
+    const identifier = $('meta[itemprop="identifier"]').attr('content');
+    if (identifier && /^\d+$/.test(identifier)) return identifier;
 
-    // 2. <meta itemprop="identifier" content="..."> (either attribute order)
-    const metaId = $('meta[itemprop="identifier"]').attr('content');
-    if (metaId && /^\d+$/.test(metaId)) return metaId;
+    const embedded = /"propertyId"\s*:\s*"(\d+)"/.exec(scriptText($))?.[1];
+    if (embedded && embedded !== propertyId) return embedded;
 
-    // 3. "propertyId":"117898910" in embedded JSON
-    match = /"propertyId"\s*:\s*"(\d+)"/.exec(html);
-    if (match && match[1] !== propertyId) return match[1];
-
-    // 4. data-property-id="117898910"
     const dataId = $('[data-property-id]').attr('data-property-id');
     if (dataId && /^\d+$/.test(dataId) && dataId !== propertyId) return dataId;
-
-    // 5. canonical / og:url href ending in a different id
-    match = /(?:canonical|og:url)[^>]*href=["'][^"']*?\/(\d+)(?:["']|[?/])/.exec(html);
-    if (match && match[1] !== propertyId && match[1].length >= 6) return match[1];
 
     return propertyId;
 }
@@ -178,60 +198,41 @@ export function assertHotelsComListed(requestUrl: string, loadedUrl: string): vo
     );
 }
 
-/** The Expedia Property ID embedded in a Hotels.com page; null when absent. */
-export function findExpediaIdInHtml(html: string): string | null {
-    // 0. Clean meta tag (case-sensitive itemProp, rendered on every property page).
-    let matches = [...html.matchAll(/itemProp=["']identifier["'][^>]*content=["'](\d+)/g)];
-    if (matches.length) return matches[0][1];
+/** The Expedia Property ID a Hotels.com page is about; null when absent. */
+export function findExpediaId($: CheerioAPI): string | null {
+    const fromImage = idFromOgImage($) ?? idFromLodgingPath($('img[src*="/lodging/"]').first().attr('src'));
+    if (fromImage) return fromImage;
 
-    // product_details?productId=615323 — appears many times in embedded state.
-    matches = [...html.matchAll(/productId[\\"']*[:=][\\"']*(\d+)/g)];
-    if (matches.length) return mostCommon(matches.map((m) => m[1]));
+    const identifier = $('meta[itemprop="identifier"]').attr('content');
+    if (identifier && /^\d+$/.test(identifier)) return identifier;
 
-    // expediaPropertyId (allows backslash-escaped JSON quotes).
-    matches = [...html.matchAll(/expediaPropertyId[\\"']*\s*[:=]\s*[\\"']*(\d+)/g)];
-    if (matches.length) return matches[0][1];
-
-    // JSON-LD structured data (first 3 blocks).
-    const ldBlocks = [...html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/g)]
-        .map((m) => m[1])
-        .slice(0, 3);
-    for (const block of ldBlocks) {
+    for (const block of $('script[type="application/ld+json"]').slice(0, 3)) {
+        let data: Record<string, unknown>;
         try {
-            const data = JSON.parse(block);
-            if (data && typeof data === 'object' && !Array.isArray(data)) {
-                for (const key of ['identifier', '@id', 'propertyId']) {
-                    const value = data[key];
-                    if (typeof value === 'string' || typeof value === 'number') {
-                        const text = String(value);
-                        if (/^\d+$/.test(text)) return text;
-                    }
-                }
-            }
+            data = JSON.parse($(block).text());
         } catch {
-            // not valid JSON, skip
+            continue;
+        }
+        for (const key of ['identifier', '@id', 'propertyId']) {
+            const value = data[key];
+            if ((typeof value === 'string' || typeof value === 'number') && /^\d+$/.test(String(value))) {
+                return String(value);
+            }
         }
     }
 
-    // propertyId in JS state → most common.
-    matches = [...html.matchAll(/propertyId["']?\s*[:=]\s*["']?(\d+)/g)];
-    if (matches.length) return mostCommon(matches.map((m) => m[1]));
+    // The app state names the property many times over and other ids once or
+    // twice, so the most frequent id is the page's own.
+    const scripts = scriptText($);
+    for (const pattern of [
+        /productId[\\"']*[:=][\\"']*(\d+)/g,
+        /expediaPropertyId[\\"']*\s*[:=]\s*[\\"']*(\d+)/g,
+        /(?:propertyId|hotelId|property_id)["']?\s*[:=]\s*["']?(\d+)/g,
+    ]) {
+        const ids = [...scripts.matchAll(pattern)].map((match) => match[1]);
+        if (ids.length) return mostCommon(ids);
+    }
 
-    // data-property-id attribute.
-    matches = [...html.matchAll(/data-property-id=["'](\d+)["']/g)];
-    if (matches.length) return matches[0][1];
-
-    // meta name/property property-id.
-    matches = [
-        ...html.matchAll(
-            /<meta[^>]*(?:name|property)=["'](?:expedia:)?property[_-]?id["'][^>]*content=["'](\d+)["']/gi,
-        ),
-    ];
-    if (matches.length) return matches[0][1];
-
-    // hotelId / propertyId / property_id → most common.
-    matches = [...html.matchAll(/(?:propertyId|hotelId|property_id)["']?\s*[:=]\s*["']?(\d+)/g)];
-    if (matches.length) return mostCommon(matches.map((m) => m[1]));
-
-    return null;
+    const dataId = $('[data-property-id]').attr('data-property-id');
+    return dataId && /^\d+$/.test(dataId) ? dataId : null;
 }

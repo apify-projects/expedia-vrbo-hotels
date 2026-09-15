@@ -7,9 +7,10 @@ import { describe, expect, it } from 'vitest';
 import { BlockedResponseError, PropertyNotFoundError } from '../src/errors.js';
 import { formatError } from '../src/formatter.js';
 import { makeExpediaProfile, PropertyClient } from '../src/property-client.js';
-import { assertNonEmptyBody, scrapeProperty } from '../src/routes.js';
+import { assertPageHasContent, scrapeProperty } from '../src/routes.js';
 import { EXPEDIA_SITE_CONFIGS } from '../src/site-configs.js';
 import { fakeSendRequest, type Route } from './fake-send-request.js';
+import { loadPage } from './load-page.js';
 
 const summaryRoute =
     (name: string | null): Route =>
@@ -90,10 +91,15 @@ describe('block detection → BlockedResponseError, so the session rotates', () 
         );
     });
 
-    it('empty page body from a navigated request', () => {
-        expect(() => assertNonEmptyBody('   ', 'https://www.hotels.com/ho118568/')).toThrow(BlockedResponseError);
-        expect(() => assertNonEmptyBody(undefined, 'https://www.hotels.com/ho118568/')).toThrow(BlockedResponseError);
-        expect(assertNonEmptyBody('<html>ok</html>', 'https://x')).toBe('<html>ok</html>');
+    it('empty page from a navigated request', () => {
+        const url = 'https://www.hotels.com/ho118568/';
+        expect(() => assertPageHasContent(loadPage(''), url)).toThrow(BlockedResponseError);
+        expect(() => assertPageHasContent(loadPage('   '), url)).toThrow(BlockedResponseError);
+        // A bare skeleton is the other shape a soft-block arrives in.
+        expect(() => assertPageHasContent(loadPage('<html><head></head><body></body></html>'), url)).toThrow(
+            BlockedResponseError,
+        );
+        expect(() => assertPageHasContent(loadPage('<html>ok</html>'), url)).not.toThrow();
     });
 });
 

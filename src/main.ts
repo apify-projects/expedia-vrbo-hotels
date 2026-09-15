@@ -3,13 +3,13 @@
  *
  * One input URL becomes one queue entry, routed by Platform, producing exactly
  * one dataset row: the routes push success rows, the failedRequestHandler pushes
- * error rows. HttpCrawler owns the HTTP client, proxy, session pool and retries;
+ * error rows. The crawler owns the HTTP client, proxy, session pool and retries;
  * handlers reach the GraphQL endpoint through `context.sendRequest`, so all of a
  * property's calls share that request's sticky residential IP.
  */
 import { ImpitHttpClient } from '@crawlee/impit-client';
 import { Actor } from 'apify';
-import { HttpCrawler, type HttpCrawlingContext, log, Request } from 'crawlee';
+import { CheerioCrawler, type CheerioCrawlingContext, log, Request } from 'crawlee';
 
 import { formatError } from './formatter.js';
 import { isResolvableUrl, MOBILE_BROWSER_UA } from './resolvers.js';
@@ -106,7 +106,7 @@ const proxyConfiguration = await Actor.createProxyConfiguration({
     checkAccess: false,
 });
 
-const crawler = new HttpCrawler({
+const crawler = new CheerioCrawler({
     proxyConfiguration,
     // The Mobile GraphQL API rejects default TLS fingerprints.
     httpClient: new ImpitHttpClient({ browser: 'okhttp4', ignoreTlsErrors: true }),
@@ -117,7 +117,7 @@ const crawler = new HttpCrawler({
 
     // Single source of every error row → preserves the one-row-per-URL invariant.
     // Crawlee already logs the failure itself, so this only writes the row.
-    async failedRequestHandler({ request }: HttpCrawlingContext, error: Error) {
+    async failedRequestHandler({ request }: CheerioCrawlingContext, error: Error) {
         const { id, platform } = errorRowMeta(request.url);
         await Actor.pushData(formatError(request.url, id, error.message, platform));
     },
