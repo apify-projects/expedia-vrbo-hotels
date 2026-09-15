@@ -78,7 +78,7 @@ export async function scrapeProperty({ url, platform, propertyId, sendRequest }:
         client.fetchPropertyDetails(propertyId),
         client.fetchProductGallery(propertyId),
         client.fetchPropertyOffers(propertyId),
-        client.fetchPageLayout(propertyId),
+        platform === 'vrbo' ? client.fetchPageLayout(propertyId) : null,
     ]);
     return formatProperty({ summaryData, contentData, url, propertyId, platform, galleryData, offersData, pageLayoutData });
 }
