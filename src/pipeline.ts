@@ -84,7 +84,7 @@ async function scrapeHotels(url: string, deps: ScrapeDeps): Promise<PropertyResu
     // Hotels.com uses different ids than Expedia — convert via the page HTML.
     const htmlHttp = deps.makeClient('html');
     const expediaId = await convertHotelsComToExpedia(url, htmlHttp);
-    if (!expediaId) throw new URLParseError(`Could not convert Hotels.com URL to Expedia property ID: ${url}`);
+    if (!expediaId) throw new URLParseError(`Hotels.com page loaded but contained no Expedia property ID: ${url}`);
 
     // Scrape via the Expedia endpoint (hotels.com/graphql soft-blocks through
     // residential proxies). The output source stays "Hotels.com" since it derives

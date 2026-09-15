@@ -35,6 +35,42 @@ describe('error paths → pipeline throws (no success row)', () => {
         const deps = { makeClient: () => new FakeHttp(() => ({ status: 200, text: '<html>home</html>', url: 'https://www.hotels.com/' })) };
         await expect(scrapeProperty('https://www.hotels.com/ho136900/x/', deps)).rejects.toBeInstanceOf(HotelsComDelistedError);
     });
+
+    it('Hotels.com page with no id → non-retryable URLParseError', async () => {
+        const deps = { makeClient: () => new FakeHttp(() => ({ status: 200, text: '<html>a real page, just no ids</html>', url: 'https://www.hotels.com/ho136900/x/' })) };
+        await expect(scrapeProperty('https://www.hotels.com/ho136900/x/', deps)).rejects.toBeInstanceOf(URLParseError);
+    });
+});
+
+describe('Hotels.com prefetch failures are retryable, not a URL problem', () => {
+    const scrape = (route: Route) => scrapeProperty(
+        'https://www.hotels.com/ho118568/',
+        { makeClient: () => new FakeHttp(route) },
+    );
+
+    it('403 → BlockedResponseError (retries on a fresh IP)', async () => {
+        await expect(scrape(() => ({ status: 403, text: '' }))).rejects.toBeInstanceOf(BlockedResponseError);
+    });
+
+    it('429 → BlockedResponseError (retries on a fresh IP)', async () => {
+        await expect(scrape(() => ({ status: 429, text: 'Too many requests' }))).rejects.toBeInstanceOf(BlockedResponseError);
+    });
+
+    it('empty 200 body → BlockedResponseError (soft-block)', async () => {
+        await expect(scrape(() => ({ status: 200, text: '' }))).rejects.toBeInstanceOf(BlockedResponseError);
+    });
+
+    it('transport failure → retryable plain Error, not URLParseError', async () => {
+        const p = scrape(() => { throw new Error('Request timeout (30000 ms) exceeded.'); });
+        await expect(p).rejects.toThrow(/fetch failed/i);
+        await expect(p).rejects.not.toBeInstanceOf(URLParseError);
+    });
+
+    it('HTTP 500 → retryable plain Error, not URLParseError', async () => {
+        const p = scrape(() => ({ status: 500, text: 'oops' }));
+        await expect(p).rejects.toThrow(/HTTP 500/);
+        await expect(p).rejects.not.toBeInstanceOf(URLParseError);
+    });
 });
 
 describe('block detection → BlockedResponseError (retire session, rotate IP — story #12)', () => {

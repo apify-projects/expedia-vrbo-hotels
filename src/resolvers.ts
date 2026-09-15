@@ -18,7 +18,7 @@
  */
 import * as cheerio from 'cheerio';
 
-import { HotelsComDelistedError } from './errors.js';
+import { BlockedResponseError, HotelsComDelistedError } from './errors.js';
 import type { HttpClient } from './http/http-client.js';
 import { VRBO_SITE_CONFIGS } from './site-configs.js';
 
@@ -189,85 +189,104 @@ export function extractExpediaIdFromUrl(hotelsComUrl: string): string | null {
 }
 
 /**
- * Fetch a Hotels.com page and extract the Expedia Property ID from its HTML /
- * embedded JS. Throws HotelsComDelistedError if the listing 301'd away (delisted).
- * Returns null if no id can be found.
+ * Fetch the Hotels.com page. Blocks throw BlockedResponseError so the retry gets
+ * a fresh IP; only a page that actually loaded reaches the id patterns.
+ */
+async function fetchHotelsComPage(hotelsComUrl: string, http: HttpClient): Promise<string> {
+    let resp;
+    try {
+        resp = await http.fetch(hotelsComUrl, { method: 'GET', redirect: 'follow', headers: HOTELS_COM_HEADERS });
+    } catch (e) {
+        throw new Error(`Hotels.com page fetch failed for ${hotelsComUrl}: ${(e as Error).message}`);
+    }
+
+    if (resp.status === 403 || resp.status === 429) {
+        throw new BlockedResponseError(`HTTP ${resp.status} block fetching ${hotelsComUrl}`);
+    }
+    if (resp.status >= 400) {
+        throw new Error(`HTTP ${resp.status} fetching ${hotelsComUrl}`);
+    }
+
+    const html = await resp.text();
+    if (!html.trim()) {
+        throw new BlockedResponseError(`Empty body from ${hotelsComUrl} (HTTP ${resp.status}) — soft-block`);
+    }
+
+    // Hotels.com 301s delisted/unknown ids to the homepage/region page. If the
+    // original named a /ho<id> property but the final URL no longer does, it's gone.
+    // After the empty-body check, so a block can't look like a delisting.
+    const origPath = (() => { try { return new URL(hotelsComUrl).pathname; } catch { return ''; } })();
+    const origMatch = /\/ho\d+/.exec(origPath);
+    if (origMatch) {
+        const finalPath = (() => { try { return new URL(resp.url).pathname; } catch { return ''; } })();
+        if (!/\/ho\d+/.test(finalPath)) {
+            throw new HotelsComDelistedError(
+                `Hotels.com no longer lists this property (ID ${origMatch[0].replace(/^[/ho]+/, '')}); `
+                + `${hotelsComUrl} redirected to ${resp.url}`,
+            );
+        }
+    }
+
+    return html;
+}
+
+/**
+ * Extract the Expedia Property ID from a Hotels.com page's HTML / embedded JS.
+ * Returns null only when the page loaded and has no id in it.
  */
 export async function extractExpediaIdFromHtml(hotelsComUrl: string, http: HttpClient): Promise<string | null> {
-    try {
-        const resp = await http.fetch(hotelsComUrl, { method: 'GET', redirect: 'follow', headers: HOTELS_COM_HEADERS });
-        if (resp.status >= 400) throw new Error(`HTTP ${resp.status}`);
+    const html = await fetchHotelsComPage(hotelsComUrl, http);
 
-        // Hotels.com 301s delisted/unknown ids to the homepage/region page. If the
-        // original named a /ho<id> property but the final URL no longer does, it's gone.
-        const origPath = (() => { try { return new URL(hotelsComUrl).pathname; } catch { return ''; } })();
-        const origMatch = /\/ho\d+/.exec(origPath);
-        if (origMatch) {
-            const finalPath = (() => { try { return new URL(resp.url).pathname; } catch { return ''; } })();
-            if (!/\/ho\d+/.test(finalPath)) {
-                throw new HotelsComDelistedError(
-                    `Hotels.com no longer lists this property (ID ${origMatch[0].replace(/^[/ho]+/, '')}); `
-                    + `${hotelsComUrl} redirected to ${resp.url}`,
-                );
-            }
-        }
+    // 0. Clean meta tag (case-sensitive itemProp, rendered on every property page).
+    let mm = [...html.matchAll(/itemProp=["']identifier["'][^>]*content=["'](\d+)/g)];
+    if (mm.length) return mm[0][1];
 
-        const html = await resp.text();
+    // product_details?productId=615323 — appears many times in embedded state.
+    mm = [...html.matchAll(/productId[\\"']*[:=][\\"']*(\d+)/g)];
+    if (mm.length) return mostCommon(mm.map((x) => x[1]));
 
-        // 0. Clean meta tag (case-sensitive itemProp, rendered on every property page).
-        let mm = [...html.matchAll(/itemProp=["']identifier["'][^>]*content=["'](\d+)/g)];
-        if (mm.length) return mm[0][1];
+    // expediaPropertyId (allows backslash-escaped JSON quotes).
+    mm = [...html.matchAll(/expediaPropertyId[\\"']*\s*[:=]\s*[\\"']*(\d+)/g)];
+    if (mm.length) return mm[0][1];
 
-        // product_details?productId=615323 — appears many times in embedded state.
-        mm = [...html.matchAll(/productId[\\"']*[:=][\\"']*(\d+)/g)];
-        if (mm.length) return mostCommon(mm.map((x) => x[1]));
-
-        // expediaPropertyId (allows backslash-escaped JSON quotes).
-        mm = [...html.matchAll(/expediaPropertyId[\\"']*\s*[:=]\s*[\\"']*(\d+)/g)];
-        if (mm.length) return mm[0][1];
-
-        // JSON-LD structured data (first 3 blocks).
-        const ldBlocks = [...html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/g)]
-            .map((x) => x[1])
-            .slice(0, 3);
-        for (const block of ldBlocks) {
-            try {
-                const data = JSON.parse(block);
-                if (data && typeof data === 'object' && !Array.isArray(data)) {
-                    for (const key of ['identifier', '@id', 'propertyId']) {
-                        const val = data[key];
-                        if (typeof val === 'string' || typeof val === 'number') {
-                            const v = String(val);
-                            if (/^\d+$/.test(v)) return v;
-                        }
+    // JSON-LD structured data (first 3 blocks).
+    const ldBlocks = [...html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/g)]
+        .map((x) => x[1])
+        .slice(0, 3);
+    for (const block of ldBlocks) {
+        try {
+            const data = JSON.parse(block);
+            if (data && typeof data === 'object' && !Array.isArray(data)) {
+                for (const key of ['identifier', '@id', 'propertyId']) {
+                    const val = data[key];
+                    if (typeof val === 'string' || typeof val === 'number') {
+                        const v = String(val);
+                        if (/^\d+$/.test(v)) return v;
                     }
                 }
-            } catch {
-                // not valid JSON, skip
             }
+        } catch {
+            // not valid JSON, skip
         }
-
-        // propertyId in JS state → most common.
-        mm = [...html.matchAll(/propertyId["']?\s*[:=]\s*["']?(\d+)/g)];
-        if (mm.length) return mostCommon(mm.map((x) => x[1]));
-
-        // data-property-id attribute.
-        mm = [...html.matchAll(/data-property-id=["'](\d+)["']/g)];
-        if (mm.length) return mm[0][1];
-
-        // meta name/property property-id.
-        mm = [...html.matchAll(/<meta[^>]*(?:name|property)=["'](?:expedia:)?property[_-]?id["'][^>]*content=["'](\d+)["']/gi)];
-        if (mm.length) return mm[0][1];
-
-        // hotelId / propertyId / property_id → most common.
-        mm = [...html.matchAll(/(?:propertyId|hotelId|property_id)["']?\s*[:=]\s*["']?(\d+)/g)];
-        if (mm.length) return mostCommon(mm.map((x) => x[1]));
-
-        return null;
-    } catch (e) {
-        if (e instanceof HotelsComDelistedError) throw e;
-        return null;
     }
+
+    // propertyId in JS state → most common.
+    mm = [...html.matchAll(/propertyId["']?\s*[:=]\s*["']?(\d+)/g)];
+    if (mm.length) return mostCommon(mm.map((x) => x[1]));
+
+    // data-property-id attribute.
+    mm = [...html.matchAll(/data-property-id=["'](\d+)["']/g)];
+    if (mm.length) return mm[0][1];
+
+    // meta name/property property-id.
+    mm = [...html.matchAll(/<meta[^>]*(?:name|property)=["'](?:expedia:)?property[_-]?id["'][^>]*content=["'](\d+)["']/gi)];
+    if (mm.length) return mm[0][1];
+
+    // hotelId / propertyId / property_id → most common.
+    mm = [...html.matchAll(/(?:propertyId|hotelId|property_id)["']?\s*[:=]\s*["']?(\d+)/g)];
+    if (mm.length) return mostCommon(mm.map((x) => x[1]));
+
+    return null;
 }
 
 /** Hotels.com URL → Expedia Property ID (cheap URL path first, then HTML). */
