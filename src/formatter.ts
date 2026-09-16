@@ -38,7 +38,6 @@ function extractDescription(contentData: any): string {
             const elementsV2 = sub.elementsV2 || [];
             for (const elemGroup of asArray(elementsV2)) {
                 for (const element of asArray(elemGroup.elements)) {
-                    // Get title from header.
                     const header = element.header || {};
                     if (pyTruthy(header)) {
                         const headerText = header.text;
@@ -47,7 +46,6 @@ function extractDescription(contentData: any): string {
                         }
                     }
 
-                    // Get description from items.
                     const items = element.items || [];
                     const texts = extractTextItems(items);
                     descriptionParts.push(...texts);
@@ -196,7 +194,6 @@ function extractFeatures(summaryData: any): Feature[] {
         return null;
     }
 
-    // Check infoItems first.
     const infoItems = spaceOverview.infoItems || [];
     for (const item of asArray(infoItems)) {
         const feature = extractFromItem(item);
@@ -205,7 +202,6 @@ function extractFeatures(summaryData: any): Feature[] {
         }
     }
 
-    // Also check items array.
     const items = spaceOverview.items || [];
     for (const item of asArray(items)) {
         const feature = extractFromItem(item);
@@ -238,15 +234,10 @@ export function formatProperty(args: {
         pageLayoutData = null,
     } = args;
 
-    // review_data is part of the Python signature but always defaulted to None
-    // by every caller in main.py, so it is omitted here.
-
-    // Extract from PropertySummary.
     const summary = safeGet(summaryData, ['data', 'propertyInfo', 'summary'], {});
 
     const { name } = summary;
 
-    // Location data.
     const location = summary.location || {};
     const address = location.address || {};
     const coordinates = location.coordinates || {};
@@ -262,35 +253,28 @@ export function formatProperty(args: {
         rating = extractRating(reviewSummary);
     }
 
-    // Extract from PropertyContent.
     const description = extractDescription(contentData);
     const highlightedAmenities = extractAmenitiesSummary(contentData);
     const detailedAmenities = extractDetailedAmenities(contentData);
     const policies = extractPolicies(contentData);
     const importantInfo = extractImportantInfo(contentData);
 
-    // Extract images from gallery data.
     const images = pyTruthy(galleryData) ? extractImages(galleryData) : [];
 
-    // Extract features from summary data.
     const features = extractFeatures(summaryData);
 
-    // Extract review count - prefer page layout, fall back to summary.
     let reviewCount = reviewCountFromLayout;
     if (reviewCount === null) {
         reviewCount = extractReviewCount(summaryData);
     }
 
-    // Extract room setup (parse counts from features).
     const roomSetup = extractRoomSetup(features);
 
-    // Extract structured house rules from policies.
     const houseRules = extractHouseRules(policies);
 
-    // Get thumbnail (first image URL).
     const thumbnail = pyTruthy(images) ? (images[0].url ?? null) : null;
 
-    // Extract room amenities separately for per-unit attachment.
+    // Kept separate from the property amenities so each unit can carry its own.
     let roomAmenities = extractCategorizedAmenitiesFromSummary(contentData, 'Room amenities');
 
     // Fallback: room-relevant categories from detailed amenities.
@@ -298,7 +282,7 @@ export function formatProperty(args: {
         roomAmenities = extractRoomAmenitiesFallback(contentData);
     }
 
-    // Extract units from categorizedListings (multi-unit properties).
+    // Multi-unit properties list their units under categorizedListings.
     let units = pyTruthy(offersData) ? extractUnitsFromOffers(offersData, galleryData, roomAmenities) : [];
 
     // Fallback: discover units from gallery image descriptions.

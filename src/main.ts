@@ -1,11 +1,8 @@
 /**
  * Actor entry point.
  *
- * One input URL becomes one queue entry, routed by Platform, producing exactly
- * one dataset item: the routes push success items, the failedRequestHandler pushes
- * error items. The crawler owns the HTTP client, proxy, session pool and retries;
- * handlers reach the GraphQL endpoint through `context.sendRequest`, so all of a
- * property's calls share that request's sticky residential IP.
+ * One input URL becomes one queue entry and exactly one dataset item: the routes
+ * push the successes, the failedRequestHandler pushes every error.
  */
 import { ImpitHttpClient } from '@crawlee/impit-client';
 import { Actor } from 'apify';
@@ -66,7 +63,7 @@ const crawler = new CheerioCrawler({
     // aborts slow proxies.
     requestHandlerTimeoutSecs: 180,
 
-    // Single source of every error item → preserves the one-item-per-URL invariant.
+    // Single source of every error item -> preserves the one-item-per-URL invariant.
     // Crawlee already logs the failure itself, so this only writes the item.
     async failedRequestHandler({ request }: CheerioCrawlingContext, error: Error) {
         const { id, platform } = errorItemMeta(request.url);

@@ -1,11 +1,7 @@
 /**
- * GraphQL client for the Expedia Group Mobile API, covering both the Vrbo and
- * Expedia/Hotels.com app identities. Faithful port of `clients/vrbo_client.py`
- * and `clients/expedia_client.py` (which were near-identical apart from the app
- * identity headers/context). The two are unified here behind a `Profile`.
- *
- * The five fetchers (summary, content, gallery, offers, pageLayout) are the
- * exact set the per-URL pipeline runs in parallel.
+ * GraphQL client for the Expedia Group Mobile API. The Vrbo and Expedia app
+ * identities differ only in headers and context, so a `Profile` carries the
+ * difference and everything else is shared.
  */
 import { randomUUID } from 'node:crypto';
 
@@ -185,7 +181,7 @@ export class PropertyClient {
         });
         const { body, statusCode } = response;
         if (statusCode === 403 || statusCode === 429) {
-            // Hard block codes → BlockedResponseError so the caller retires the
+            // Hard block codes -> BlockedResponseError so the caller retires the
             // session and the retry lands a fresh IP.
             throw new BlockedResponseError(`HTTP ${statusCode} block from ${this.endpoint}`);
         }

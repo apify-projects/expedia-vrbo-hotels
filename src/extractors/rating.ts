@@ -40,7 +40,7 @@ export function extractRatingFromPageLayout(pageLayoutData: any): [number | null
                             return seoData.aggregateRating;
                         }
                     } catch {
-                        // pass
+                        // Not the JSON blob we are after; keep walking.
                     }
                 }
             }
@@ -109,7 +109,6 @@ export function extractRating(reviewSummary: any): number | null {
 
     let ratingValue: number | null = null;
 
-    // Try explicit candidates first.
     for (const val of candidates) {
         if (typeof val === 'number' && val >= 0 && val <= 10) {
             ratingValue = val;
@@ -125,17 +124,17 @@ export function extractRating(reviewSummary: any): number | null {
                     // Expedia doubled rating: 18.0/10 means 9.0.
                     ratingValue = pyRound1(parsed / 2);
                 } else if (maxVal === 5) {
-                    // Convert 5-point scale to 10-point.
+                    // 5-point scale.
                     ratingValue = pyRound1(parsed * 2);
                 } else if (maxVal === 10) {
                     ratingValue = parsed;
                 } else {
-                    // Normalize any other scale to 10-point.
+                    // Any other scale.
                     ratingValue = pyRound1((parsed / maxVal) * 10);
                 }
                 break;
             }
-            // Then try simple number, but only if it's a valid rating (0-10).
+            // A bare number counts only if it is already on the 10-point scale.
             const numMatch = numberPattern.exec(val);
             if (numMatch) {
                 const parsed = Number.parseFloat(numMatch[1]);
@@ -177,7 +176,6 @@ export function extractReviewCount(summaryData: any): number | null {
             }
         }
 
-        // Also check direct fields.
         for (const key of ['totalCount', 'count', 'reviewCount']) {
             const val = reviewSummary[key];
             if (typeof val === 'number' && Number.isInteger(val) && val > 0) {

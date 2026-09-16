@@ -1,11 +1,7 @@
 /**
  * One route per Platform, plus one that follows a short link and re-enqueues the
- * destination. Each property route produces exactly one dataset item; error items
+ * destination. Each property route pushes exactly one dataset item; error items
  * come from main's failedRequestHandler.
- *
- * Requests whose page we actually need (Hotels.com, legacy Vrbo) are navigated
- * by the crawler, so blocks and retries on that fetch are the session pool's job.
- * The rest set `skipNavigation` and talk only to the GraphQL endpoint.
  */
 import { Actor } from 'apify';
 import { type CheerioAPI, createCheerioRouter, type Log } from 'crawlee';
@@ -115,7 +111,6 @@ router.addHandler(LABELS.SHORT_LINK, async ({ request, $, log, addRequests }) =>
 });
 
 router.addHandler(LABELS.VRBO, async ({ request, $, sendRequest, log }) => {
-    // Always scrape via vrbo.com - regional endpoints can return wrong data.
     const [parsedId] = extractVrboPropertyId(request.url);
     if (!parsedId) throw new URLParseError(`Could not extract property ID from Vrbo URL: ${request.url}`);
 
@@ -157,11 +152,7 @@ async function pushItem(item: PropertyResult, url: string, log: Log): Promise<vo
     log.info(`Scraped ${item.name} (${url})`);
 }
 
-/**
- * Build the queue entry for one property URL. Only Hotels.com and legacy Vrbo
- * URLs need their page, so everything else skips the fetch the crawler would
- * otherwise make.
- */
+/** The queue entry for one property URL, navigated only if the id needs a page. */
 export function buildPropertyRequest(url: string, platform: Platform) {
     return {
         url,

@@ -10,7 +10,7 @@ import type { Platform } from './url-parser.js';
 /** An image entry produced by `extractImages`. */
 export interface PropertyImage {
     url: string;
-    /** description may be null (image.description / img_info.description fallback). */
+    /** Null when neither the image nor its gallery entry carries one. */
     description: string | null;
 }
 
@@ -30,14 +30,14 @@ export interface HighlightedAmenity {
     text: string;
 }
 
-/** A categorized amenity block from `extract_detailed_amenities`. */
+/** A categorised amenity block from `extractDetailedAmenities`. */
 export interface AmenityCategory {
     title: string;
     items: string[];
 }
 
 /**
- * A policy block from `extract_policies`. `items` is a heterogeneous array:
+ * A policy block from `extractPolicies`. `items` is a heterogeneous array:
  * either plain strings (text items) or nested PolicySubSection objects.
  */
 export interface PolicySubSection {
@@ -52,7 +52,7 @@ export interface PolicySection {
     items: (string | PolicySubSection)[];
 }
 
-/** Structured house rules from `extract_house_rules`. */
+/** Structured house rules from `extractHouseRules`. */
 export interface HouseRules {
     checkInTime: string | null;
     checkOutTime: string | null;

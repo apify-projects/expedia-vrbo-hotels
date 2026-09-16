@@ -63,7 +63,6 @@ function buildUnitImageMap(galleryData: any, unitNames: string[]): Record<string
         }
     }
 
-    // Normalize unit names for matching (lowercase, stripped).
     const normalizedUnits: [string, string][] = unitNames.map((name) => [name, name.toLowerCase().trim()]);
 
     for (const imgItem of allImages) {
@@ -124,7 +123,6 @@ export function extractUnitsFromOffers(
         }
     }
 
-    // Build per-unit image map using description-based matching.
     const unitImageMap = buildUnitImageMap(galleryData, unitNames);
 
     for (const listing of asArray(categorizedListings)) {
@@ -140,7 +138,6 @@ export function extractUnitsFromOffers(
                 const unitName = header.text ?? null;
                 const unitSubtext = header.subText ?? null;
 
-                // Extract features array as dicts with text and iconId.
                 const featuresData = listing.features || [];
                 const features: Feature[] = [];
                 for (const feature of asArray(featuresData)) {
@@ -150,7 +147,6 @@ export function extractUnitsFromOffers(
                     }
                 }
 
-                // Look up matched images by unit name.
                 // Python: unit_image_map.get(unit_name, []) - when unit_name is
                 // null (no header text) it isn't a key, so defaults to [].
                 const unitImages =
@@ -158,7 +154,6 @@ export function extractUnitsFromOffers(
                         ? unitImageMap[unitName]
                         : [];
 
-                // Extract bed types from features.
                 const bedTypes = extractBedTypes(features);
 
                 units.push({

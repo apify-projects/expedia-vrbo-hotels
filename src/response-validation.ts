@@ -1,11 +1,9 @@
 /**
  * Validate that a GraphQL response is for the property we requested.
  *
- * Faithful port of vrbo_client.validate_property_response. A valid property
- * always returns a non-blank name; dead listings and unresolved legacy IDs echo
- * the id with an empty/blank name, which must count as a failed scrape (not a
- * silent success with name=null). Also catches an endpoint returning a different
- * property than requested.
+ * A live property always returns a non-blank name. Dead listings and unresolved
+ * legacy ids echo the id back with a blank one, which has to count as a failed
+ * scrape rather than a success with `name: null`.
  */
 
 /**
@@ -28,6 +26,8 @@ export function validatePropertyResponse(responseData: any, expectedId: string):
         };
     }
 
+    // Vrbo ids can carry a letter suffix (`117898910vb`) that the API answers
+    // without, so compare the numbers only.
     const expectedNum = String(expectedId).replace(/[a-zA-Z]+$/, '');
     const responseNum = responseId ? String(responseId).replace(/[a-zA-Z]+$/, '') : '';
 

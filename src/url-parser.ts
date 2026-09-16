@@ -140,7 +140,6 @@ export function detectPlatform(url: string): Platform | null {
 /**
  * Extract [numericId, suffix] from a Vrbo URL across its many formats.
  * Returns [null, null] when nothing matches. suffix is one of 'ha'|'vb'|'a'|''.
- * Faithful port of vrbo_client.extract_property_id_from_url.
  */
 export function extractVrboPropertyId(url: string): [string, string] | [null, null] {
     const cleaned = url.trim().replace(/["']+$/, '');
@@ -156,13 +155,13 @@ export function extractVrboPropertyId(url: string): [string, string] | [null, nu
         return [null, null];
     }
 
-    // Pattern 1: /p{ID}{suffix} anywhere in path
+    // /p{id}{suffix} anywhere in the path
     let m = /\/p(\d+)([a-z]*)(?:\/|$|\?)/i.exec(`/${path}/`);
     if (m) {
         return [m[1], m[2] ? m[2].toLowerCase() : ''];
     }
 
-    // Pattern 2: numeric ID with optional short suffix at a path boundary
+    // A numeric id with an optional short suffix, at a path boundary
     m = /(?:^|\/)(\d+)([a-z]{0,3})(?:\/|$)/i.exec(path);
     if (m) {
         return [m[1], m[2] ? m[2].toLowerCase() : ''];

@@ -26,7 +26,7 @@ const client = (route: Route) =>
     });
 
 describe('a blank-name response is a dead id on every platform', () => {
-    it.each(['vrbo', 'expedia', 'hotels.com'] as const)('%s → PropertyNotFoundError', async (platform) => {
+    it.each(['vrbo', 'expedia', 'hotels.com'] as const)('%s -> PropertyNotFoundError', async (platform) => {
         await expect(
             scrapeProperty({
                 url: 'https://www.example.com/x',
@@ -41,7 +41,7 @@ describe('a blank-name response is a dead id on every platform', () => {
 describe('dead property ids are not retried', () => {
     const gqlErrors = (...messages: string[]) => JSON.stringify({ errors: messages.map((message) => ({ message })) });
 
-    it('"Failed to retrieve Property" → PropertyNotFoundError', async () => {
+    it('"Failed to retrieve Property" -> PropertyNotFoundError', async () => {
         const route: Route = () => ({
             body: gqlErrors(
                 'Exception while fetching data (/propertyInfo/summary) : Failed to retrieve Property. Property id=9999',
@@ -50,7 +50,7 @@ describe('dead property ids are not retried', () => {
         await expect(client(route).fetchPropertySummary('9999')).rejects.toBeInstanceOf(PropertyNotFoundError);
     });
 
-    it('"Failed to retrieve Hotel Summary" → PropertyNotFoundError', async () => {
+    it('"Failed to retrieve Hotel Summary" -> PropertyNotFoundError', async () => {
         const route: Route = () => ({
             body: gqlErrors(
                 'Exception while fetching data (/propertyInfo/propertyDetails) : Failed to retrieve Hotel Summary. Hotel = 9999',
@@ -78,7 +78,7 @@ describe('dead property ids are not retried', () => {
     });
 });
 
-describe('block detection → BlockedResponseError, so the session rotates', () => {
+describe('block detection -> BlockedResponseError, so the session rotates', () => {
     it.each([429, 403])('HTTP %i', async (statusCode) => {
         await expect(client(() => ({ statusCode, body: '' })).fetchPropertySummary('525006')).rejects.toBeInstanceOf(
             BlockedResponseError,
@@ -103,7 +103,7 @@ describe('block detection → BlockedResponseError, so the session rotates', () 
     });
 });
 
-describe('formatError → one structured error item', () => {
+describe('formatError -> one structured error item', () => {
     it('reports the platform as its machine value', () => {
         expect(formatError('https://www.vrbo.com/x', '123', 'boom', 'vrbo').platform).toBe('vrbo');
         expect(formatError('https://www.expedia.co.uk/x', '1', 'boom', 'expedia').platform).toBe('expedia');

@@ -1,14 +1,8 @@
 /**
- * Domain error types.
- *
- * The input-level ones extend Crawlee's NonRetryableError so a terminal failure
- * (unsupported URL, delisted listing, dead property id) fails fast instead of
- * burning retries, and lands in the single failedRequestHandler that emits the
- * one error item.
- *
- * They also overwrite `stack` with just their message: Crawlee logs error.stack
- * verbatim, and these report bad input rather than a crash, so the internal
- * frames are noise in the run log.
+ * The input-level errors extend NonRetryableError, so a dead id or an
+ * unsupported URL fails fast instead of burning retries. They also overwrite
+ * `stack` with just the message, because Crawlee logs `error.stack` verbatim and
+ * these report bad input rather than a crash.
  */
 import { NonRetryableError } from 'crawlee';
 
@@ -50,7 +44,7 @@ export class PropertyNotFoundError extends NonRetryableError {
 /**
  * Raised when the endpoint soft-blocks with an empty / non-JSON body. RETRYABLE:
  * the crawler retires the session so the retry lands a fresh residential IP.
- * Plain Error → Crawlee retries it (unlike NonRetryableError).
+ * Plain Error -> Crawlee retries it (unlike NonRetryableError).
  */
 export class BlockedResponseError extends Error {
     constructor(message: string) {

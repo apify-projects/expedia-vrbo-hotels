@@ -19,12 +19,10 @@ export function extractPolicies(contentData: any): PolicySection[] {
             const elementsV2 = sub.elementsV2 || [];
             for (const elemGroup of asArray(elementsV2)) {
                 for (const element of asArray(elemGroup.elements)) {
-                    // Get subsection header.
                     const header = element.header || {};
                     const subTitle = pyTruthy(header) ? (header.text ?? null) : null;
                     const iconId = pyTruthy(header) ? safeGet(header, ['icon', 'id']) : null;
 
-                    // Get items.
                     const texts = extractTextItems(element.items || []);
 
                     if (pyTruthy(subTitle) && pyTruthy(texts)) {
@@ -122,33 +120,28 @@ export function extractHouseRules(policies: any): HouseRules {
 
     const allText = searchPolicies(policies).join(' ');
 
-    // Extract check-in time.
     let match = checkinPattern.exec(allText);
     if (match) {
         result.checkInTime = match[1].trim();
     }
 
-    // Extract check-out time.
     match = checkoutPattern.exec(allText);
     if (match) {
         result.checkOutTime = match[1].trim();
     }
 
-    // Extract smoking policy.
     if (smokingNoPattern.test(allText)) {
         result.smokingAllowed = false;
     } else if (smokingYesPattern.test(allText)) {
         result.smokingAllowed = true;
     }
 
-    // Extract pets policy.
     if (petsNoPattern.test(allText)) {
         result.petsAllowed = false;
     } else if (petsYesPattern.test(allText)) {
         result.petsAllowed = true;
     }
 
-    // Extract events policy.
     if (eventsNoPattern.test(allText)) {
         result.eventsAllowed = false;
     } else if (eventsYesPattern.test(allText)) {

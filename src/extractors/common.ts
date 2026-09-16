@@ -21,13 +21,8 @@ export function isDict(x: any): x is Record<string, any> {
 }
 
 /**
- * Array-safe coercion matching Python's `for x in (y or [])` semantics.
- *
- * In Python, iterating a dict (object) where a list was expected harmlessly
- * walks the dict KEYS, which then fail the `isinstance(x, dict)` check and are
- * skipped - so a non-list contributes nothing and does NOT error. JS `for...of`
- * over a non-array object THROWS, so we collapse "non-array → empty" here to
- * preserve the Python behavior. For an actual array, returns it unchanged.
+ * Non-array to empty, so a `for...of` over an unexpected object skips it instead
+ * of throwing. The Python this ports from iterated such values harmlessly.
  */
 export const asArray = (x: any): any[] => (Array.isArray(x) ? x : []);
 
@@ -49,11 +44,7 @@ export function pyRound1(x: number): number {
     return r / 10;
 }
 
-/**
- * Python `float(str)` - returns null when not parseable, mirroring the
- * try/except (ValueError) guards in the Python. Accepts leading/trailing
- * whitespace and standard float syntax. Rejects empty / NaN-like junk.
- */
+/** Python `float(str)`: null when not parseable, where Python raised ValueError. */
 export function pyFloat(s: any): number | null {
     if (typeof s === 'number') return Number.isNaN(s) ? null : s;
     if (typeof s !== 'string') return null;
@@ -66,11 +57,7 @@ export function pyFloat(s: any): number | null {
     return Number.isNaN(v) ? null : v;
 }
 
-/**
- * Python `int(str)` for a base-10 integer literal - returns null when not a
- * pure integer (matches `int("9.0")` raising ValueError). Used for review
- * counts parsed from strings.
- */
+/** Python `int(str)`: null unless the whole string is an integer, so `"9.0"` fails. */
 export function pyIntStrict(s: any): number | null {
     if (typeof s !== 'string') return null;
     const t = s.trim();
@@ -98,10 +85,7 @@ export function nowIso(): string {
     return new Date().toISOString();
 }
 
-/**
- * Faithful port of `safe_get`: navigate nested dict/list, returning `default`
- * on a type mismatch or a None encountered along the way.
- */
+/** Navigate nested objects and arrays, returning `defaultValue` on any miss. */
 export function safeGet(data: any, keys: (string | number)[], defaultValue: any = null): any {
     let result: any = data;
     for (const key of keys) {
@@ -130,7 +114,6 @@ export function extractTextItems(items: any): string[] {
         if (typename === 'PropertyContentItemMarkup') {
             const text = safeGet(item, ['content', 'text']);
             if (pyTruthy(text)) {
-                // Strip HTML tags
                 let cleanText = String(text)
                     .replace(/<[^>]+>/g, ' ')
                     .trim();
