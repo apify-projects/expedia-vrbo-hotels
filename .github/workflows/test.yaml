@@ -20,5 +20,4 @@ jobs:
             - run: npm run typecheck
             - run: npm run format:check
             - run: npm run build
-            # The live smoke test skips itself without SMOKE + a proxy password.
             - run: npm test

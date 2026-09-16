@@ -14,8 +14,8 @@ with `expectedItem` (ignoring the non-deterministic `scrapedAt`).
 ## Provenance, honestly
 
 Captured live at the TypeScript cutover (2026-06-20) from the Python actor this
-one replaces, by the throwaway `spike/capture_fixtures.py` — removed with the rest
-of the Python, so see git history before the cutover commit to regenerate.
+one replaces, by a throwaway capture script that went with the rest of the Python.
+See git history before the cutover commit to regenerate.
 
 `expectedItem` began as the Python actor's output and is no longer it. The items
 were edited as the output deliberately changed: `ratingText` dropped, `host`,

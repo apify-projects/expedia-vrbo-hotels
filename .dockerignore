@@ -7,7 +7,6 @@ dist
 storage
 apify_storage
 test
-spike
 .claude
 .proxy-mcp
 .playwright-mcp

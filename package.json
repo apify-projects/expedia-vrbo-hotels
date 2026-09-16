@@ -17,8 +17,7 @@
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "test": "vitest run",
-        "test:watch": "vitest",
-        "test:smoke": "SMOKE=1 vitest run test/smoke.test.ts"
+        "test:watch": "vitest"
     },
     "dependencies": {
         "@crawlee/impit-client": "3.17.0",

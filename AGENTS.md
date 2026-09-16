@@ -18,8 +18,12 @@ identities (Vrbo and Expedia) over the same schema, selected by `Profile` in
 `property-client.ts`.
 
 - Every request needs HMAC-signed headers (`auth.ts`) and a recognised TLS
-  fingerprint, which is why the client is impit with `browser: 'okhttp4'`. Its
-  bare default gets a flat 429; the measurements are in `spike/RESULTS.md`.
+  fingerprint, which is why the client is impit with `browser: 'okhttp4'`. Over
+  12 fresh residential IPs, `okhttp4` passed 11/12 (the miss a proxy tunnel
+  error, not a block) against a 12/12 baseline, and impit's bare default was
+  429ed every time. A later re-check from a single IP had `chrome` and `firefox`
+  passing too, so only the bare default is known-blocked and the `okhttp4` pin
+  is not proven load-bearing.
 - `queries.ts` is generated from the APK and must stay byte-identical to what the
   app sends. It is excluded from Prettier and ESLint for that reason; do not
   reformat or "tidy" it.
