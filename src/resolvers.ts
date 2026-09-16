@@ -159,21 +159,6 @@ function mostCommon(items: string[]): string {
     return best;
 }
 
-/** Cheap path: Expedia id already present in the Hotels.com URL query string. */
-export function extractExpediaIdFromUrl(hotelsComUrl: string): string | null {
-    let params: URLSearchParams;
-    try {
-        params = new URL(hotelsComUrl).searchParams;
-    } catch {
-        return null;
-    }
-    for (const key of ['expediaPropertyId', 'selected']) {
-        const value = params.get(key);
-        if (value && /^\d+$/.test(value)) return value;
-    }
-    return null;
-}
-
 /**
  * Hotels.com 301s delisted or unknown ids to the homepage or a region page. If
  * the request named a /ho<id> property but the landing URL no longer does, it is

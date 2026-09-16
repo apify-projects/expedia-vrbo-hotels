@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import { URLParseError } from '../src/errors.js';
-import { detectPlatform, extractPropertyId, extractVrboPropertyId, numericId, validateUrl } from '../src/url-parser.js';
+import {
+    detectPlatform,
+    extractPropertyId,
+    extractVrboPropertyId,
+    findPropertyIdInQuery,
+    numericId,
+    validateUrl,
+} from '../src/url-parser.js';
 
 describe('extractPropertyId - generic (ported example cases)', () => {
     it.each([
@@ -72,5 +79,42 @@ describe('detectPlatform / validateUrl / numericId', () => {
     it('numericId strips non-digits', () => {
         expect(numericId('11887139ha')).toBe('11887139');
         expect(numericId('4084796')).toBe('4084796');
+    });
+});
+
+describe('findPropertyIdInQuery - the id Expedia Group puts in the query string', () => {
+    it('reads expediaPropertyId and selected', () => {
+        expect(findPropertyIdInQuery('https://www.hotels.com/ho1/x?expediaPropertyId=615323')).toBe('615323');
+        expect(findPropertyIdInQuery('https://www.hotels.com/Hotel-Search?selected=11677770&adults=2')).toBe(
+            '11677770',
+        );
+    });
+
+    it('is null when the query carries no id', () => {
+        expect(findPropertyIdInQuery('https://www.hotels.com/ho136900/x/')).toBeNull();
+        expect(findPropertyIdInQuery('not a url')).toBeNull();
+    });
+
+    it('wins over a Vrbo path id, which can be an older id the API rejects', () => {
+        const url = 'https://www.vrbo.com/716876?expediaPropertyId=33691153&chkin=2026-09-30';
+        expect(extractPropertyId(url)).toEqual(['33691153', 'vrbo']);
+        expect(extractVrboPropertyId(url)).toEqual(['33691153', '']);
+    });
+
+    it('takes the selected property out of a search page', () => {
+        const url = 'https://www.hotels.com/Hotel-Search?destination=Hotel+Riu&selected=11677770&adults=2';
+        expect(extractPropertyId(url)).toEqual(['11677770', 'hotels.com']);
+    });
+
+    it('rejects a search page with nothing selected, on every site', () => {
+        expect(() => extractPropertyId('https://www.hotels.com/Hotel-Search?destination=Prague')).toThrow(
+            /search pages work only with one property selected/,
+        );
+        expect(() => extractPropertyId('https://www.expedia.com/Hotel-Search?destination=Prague')).toThrow(
+            /search pages work only with one property selected/,
+        );
+        expect(() => extractPropertyId('https://www.vrbo.com/search?q=corfu')).toThrow(
+            /search pages work only with one property selected/,
+        );
     });
 });

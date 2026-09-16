@@ -34,6 +34,9 @@ Paste property URLs from any of the three sites, mixed in one list, and get one 
 | Expedia | a hotel page - `expedia.com/....h525006.Hotel-Information`, and the international domains (`.co.uk`, `.de`, `.it`, ...) |
 | Hotels.com | a property page - `hotels.com/ho136900/...`, including `uk.hotels.com` and locale paths like `/de/ho136900/` |
 | Vrbo | a listing page - `vrbo.com/en-gb/p11348801`, or a bare id like `vrbo.com/117898910` |
+| any of them | a search page with one property open, which puts `selected=<id>` in the URL - that property is the one scraped |
+
+A search page with nothing selected names no property, so it is rejected with a message saying so.
 
 Duplicate URLs pointing at the same property are scraped once. A URL that can't be used gets its own item explaining why, and the rest of the run carries on.
 

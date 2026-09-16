@@ -4,7 +4,6 @@ import { HotelsComDelistedError, PropertyNotFoundError } from '../src/errors.js'
 import {
     assertHotelsComListed,
     assertVrboDetailPage,
-    extractExpediaIdFromUrl,
     findDestinationUrl,
     findExpediaId,
     findVrboPropertyId,
@@ -96,12 +95,6 @@ describe('findDestinationUrl', () => {
 });
 
 describe('Hotels.com id conversion', () => {
-    it('cheap path: reads expediaPropertyId from the URL query', () => {
-        expect(extractExpediaIdFromUrl('https://www.hotels.com/ho1/x?expediaPropertyId=615323')).toBe('615323');
-        expect(extractExpediaIdFromUrl('https://www.hotels.com/x?selected=42')).toBe('42');
-        expect(extractExpediaIdFromUrl('https://www.hotels.com/ho136900/x/')).toBeNull();
-    });
-
     it('extracts the id from the itemProp identifier meta', () => {
         expect(findExpediaId(loadPage('<meta itemprop="identifier" content="21856"/>'))).toBe('21856');
     });

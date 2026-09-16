@@ -16,7 +16,6 @@ import { makeExpediaProfile, makeVrboProfile, PropertyClient, type SendRequest }
 import {
     assertHotelsComListed,
     assertVrboDetailPage,
-    extractExpediaIdFromUrl,
     findDestinationUrl,
     findExpediaId,
     findVrboPropertyId,
@@ -26,7 +25,7 @@ import {
 } from './resolvers.js';
 import { detectExpediaSite, EXPEDIA_SITE_CONFIGS, VRBO_SITE_CONFIGS } from './site-configs.js';
 import type { PropertyResult } from './types.js';
-import { extractPropertyId, extractVrboPropertyId, type Platform } from './url-parser.js';
+import { extractPropertyId, extractVrboPropertyId, findPropertyIdInQuery, type Platform } from './url-parser.js';
 
 export const LABELS = {
     SHORT_LINK: 'short-link',
@@ -87,6 +86,17 @@ export async function scrapeProperty({ url, platform, propertyId, sendRequest }:
     });
 }
 
+/**
+ * Whether the Property ID has to be read off the page. The request builder and
+ * the routes both ask, and they must agree: a request built with
+ * `skipNavigation` has no page for a route to read.
+ */
+function needsPageForId(url: string, platform: Platform): boolean {
+    if (findPropertyIdInQuery(url) !== null) return false;
+    if (platform === 'hotels.com') return true;
+    return platform === 'vrbo' && needsIdResolution(url, extractVrboPropertyId(url)[1] ?? '');
+}
+
 /** This target soft-blocks with a 200 that is empty, or a bare html skeleton. */
 export function assertPageHasContent($: CheerioAPI, url: string): void {
     if (!$.root().text().trim()) throw new BlockedResponseError(`Empty page from ${url} - soft-block`);
@@ -106,11 +116,11 @@ router.addHandler(LABELS.SHORT_LINK, async ({ request, $, log, addRequests }) =>
 
 router.addHandler(LABELS.VRBO, async ({ request, $, sendRequest, log }) => {
     // Always scrape via vrbo.com - regional endpoints can return wrong data.
-    const [parsedId, suffix] = extractVrboPropertyId(request.url);
+    const [parsedId] = extractVrboPropertyId(request.url);
     if (!parsedId) throw new URLParseError(`Could not extract property ID from Vrbo URL: ${request.url}`);
 
     let propertyId = parsedId;
-    if (needsIdResolution(request.url, suffix ?? '')) {
+    if (needsPageForId(request.url, 'vrbo')) {
         assertPageHasContent($, request.url);
         assertVrboDetailPage(request.loadedUrl ?? request.url, parsedId);
         propertyId = findVrboPropertyId($, parsedId);
@@ -128,7 +138,7 @@ router.addHandler(LABELS.EXPEDIA, async ({ request, sendRequest, log }) => {
 
 router.addHandler(LABELS.HOTELS_COM, async ({ request, $, sendRequest, log }) => {
     // Hotels.com uses different ids than Expedia; the page carries the mapping.
-    let expediaId = extractExpediaIdFromUrl(request.url);
+    let expediaId = findPropertyIdInQuery(request.url);
     if (!expediaId) {
         assertPageHasContent($, request.url);
         assertHotelsComListed(request.url, request.loadedUrl ?? request.url);
@@ -153,15 +163,10 @@ async function pushItem(item: PropertyResult, url: string, log: Log): Promise<vo
  * otherwise make.
  */
 export function buildPropertyRequest(url: string, platform: Platform) {
-    const needsPage =
-        platform === 'hotels.com'
-            ? extractExpediaIdFromUrl(url) === null
-            : platform === 'vrbo' && needsIdResolution(url, extractVrboPropertyId(url)[1] ?? '');
-
     return {
         url,
         label: PLATFORM_LABEL_MAP[platform],
-        skipNavigation: !needsPage,
+        skipNavigation: !needsPageForId(url, platform),
         headers: platform === 'hotels.com' ? HOTELS_COM_HEADERS : HOMEAWAY_HTML_HEADERS,
     };
 }
