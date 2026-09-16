@@ -1,8 +1,8 @@
-# Expedia, Vrbo & Hotels.com Property Scraper
+# Expedia Scraper - Vrbo & Hotels.com Property Data
 
 Scrape hotel and vacation-rental listings from Expedia, Vrbo, and Hotels.com without a login or API keys, for travel market research, competitor tracking, and building property datasets.
 
-## What does Expedia, Vrbo & Hotels.com Property Scraper do?
+## What does this actor do?
 
 Paste property URLs from any of the three sites, mixed in one list, and get one structured dataset item per URL. All three belong to Expedia Group and share a backend, so you don't sort your URLs by site or run three different scrapers.
 

@@ -1,5 +1,5 @@
 {
-    "name": "expedia-vrbo-hotels-property-scraper",
+    "name": "expedia-vrbo-hotels-scraper",
     "version": "1.0.0",
     "type": "module",
     "description": "Scrapes property details from Expedia, Vrbo and Hotels.com. All three run on the same Expedia Group mobile API, so one run takes any mix of their property URLs and returns one dataset item per URL in the same shape.",

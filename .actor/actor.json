@@ -1,8 +1,8 @@
 {
     "$schema": "https://apify.com/schemas/v1/actor.ide.json",
     "actorSpecification": 1,
-    "name": "expedia-vrbo-hotels-property-scraper",
-    "title": "Expedia, Vrbo & Hotels.com Property Scraper",
+    "name": "expedia-vrbo-hotels-scraper",
+    "title": "Expedia Scraper - Vrbo & Hotels.com Property Data",
     "description": "Scrapes property details from Expedia, Vrbo and Hotels.com. All three run on the same Expedia Group mobile API, so one run takes any mix of their property URLs and returns one dataset item per URL in the same shape.",
     "version": "1.0",
     "buildTag": "latest",

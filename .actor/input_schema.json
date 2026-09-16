@@ -1,5 +1,5 @@
 {
-    "title": "Expedia, Vrbo & Hotels.com Property Scraper Input",
+    "title": "Expedia Scraper - Vrbo & Hotels.com Property Data Input",
     "type": "object",
     "schemaVersion": 1,
     "properties": {
