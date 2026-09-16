@@ -9,35 +9,19 @@
  */
 import { ImpitHttpClient } from '@crawlee/impit-client';
 import { Actor } from 'apify';
-import { CheerioCrawler, type CheerioCrawlingContext, log, Request } from 'crawlee';
+import { CheerioCrawler, type CheerioCrawlingContext, log } from 'crawlee';
 
 import { formatError } from './formatter.js';
-import { isResolvableUrl, MOBILE_BROWSER_UA } from './resolvers.js';
-import { buildPropertyRequest, LABELS, router } from './routes.js';
+import { buildStartRequests } from './input.js';
+import { router } from './routes.js';
 import { detectPlatform, extractPropertyId, extractVrboPropertyId, type Platform } from './url-parser.js';
 
 interface ActorInput {
     urls: string[];
 }
 
-/**
- * Accept a pasted URL, adding the scheme when it is missing. Returns null when
- * the entry cannot be a property URL at all.
- */
-function parseInputUrl(raw: string): string | null {
-    const trimmed = raw.trim();
-    const candidate = /^[a-z][a-z0-9+.-]*:/i.test(trimmed) ? trimmed : `https://${trimmed}`;
-    try {
-        const { protocol, hostname, href } = new URL(candidate);
-        if (protocol !== 'http:' && protocol !== 'https:') return null;
-        return hostname === '' ? null : href;
-    } catch {
-        return null;
-    }
-}
-
 /** Best-effort id + Platform tag for an error item. */
-function errorRowMeta(url: string): { id: string; platform: Platform | null } {
+function errorItemMeta(url: string): { id: string; platform: Platform | null } {
     const platform = detectPlatform(url);
     if (!platform) return { id: 'unknown', platform: null };
     try {
@@ -52,40 +36,7 @@ await Actor.init();
 
 const { urls } = await Actor.getInputOrThrow<ActorInput>();
 
-const requests = [];
-const unusable: { raw: string; reason: string }[] = [];
-const seenKeys = new Set<string>();
-let duplicateCount = 0;
-
-for (const raw of urls) {
-    const url = parseInputUrl(raw);
-    if (url === null) {
-        unusable.push({ raw, reason: 'Not a valid URL. Expected an absolute http(s) URL.' });
-        continue;
-    }
-    // Crawlee would collapse these into one request on its own; dropping them
-    // here keeps the reported counts honest.
-    const key = Request.computeUniqueKey({ url, method: 'GET' });
-    if (seenKeys.has(key)) {
-        duplicateCount += 1;
-        continue;
-    }
-    seenKeys.add(key);
-
-    // A short link has to be followed before its Platform is known.
-    if (isResolvableUrl(url)) {
-        requests.push({ url, label: LABELS.SHORT_LINK, headers: { 'User-Agent': MOBILE_BROWSER_UA } });
-        continue;
-    }
-    // extractPropertyId distinguishes an unsupported domain from a supported one
-    // that is not a property page; detectPlatform would flatten both to null.
-    try {
-        const [, platform] = extractPropertyId(url);
-        requests.push(buildPropertyRequest(url, platform));
-    } catch (error) {
-        unusable.push({ raw, reason: (error as Error).message });
-    }
-}
+const { requests, unusable, duplicateCount } = buildStartRequests(urls);
 
 if (duplicateCount > 0) {
     log.warning(`Skipping ${duplicateCount} duplicate URLs`);
@@ -118,7 +69,7 @@ const crawler = new CheerioCrawler({
     // Single source of every error item → preserves the one-item-per-URL invariant.
     // Crawlee already logs the failure itself, so this only writes the item.
     async failedRequestHandler({ request }: CheerioCrawlingContext, error: Error) {
-        const { id, platform } = errorRowMeta(request.url);
+        const { id, platform } = errorItemMeta(request.url);
         await Actor.pushData(formatError(request.url, id, error.message, platform));
     },
 });
