@@ -1,109 +1,78 @@
 /**
  * Actor entry point.
  *
- * BasicCrawler owns the queue, concurrency, retries and session pool (ADR-0002,
- * ADR-0003); impit does the HTTP inside the handler. One Property URL → one
- * Terminal row:
- *   - requestHandler pushes SUCCESS rows only;
- *   - a single failedRequestHandler pushes ALL error rows.
- * One sticky residential IP per URL (SessionPool session → proxyConfiguration
- * .newUrl(session.id)); the 5 GraphQL calls share it. An empty-body soft-block
- * retires the session so the retry lands a fresh IP.
+ * One input URL becomes one queue entry and exactly one dataset item: the routes
+ * push the successes, the failedRequestHandler pushes every error.
  */
+import { ImpitHttpClient } from '@crawlee/impit-client';
 import { Actor } from 'apify';
-import { BasicCrawler, type BasicCrawlingContext, log } from 'crawlee';
+import { CheerioCrawler, type CheerioCrawlingContext, log } from 'crawlee';
 
-import { BlockedResponseError, HotelsComDelistedError } from './errors.js';
 import { formatError } from './formatter.js';
-import { ImpitHttpClient } from './http/impit-client.js';
-import type { ClientKind, ScrapeDeps } from './pipeline.js';
-import { scrapeProperty } from './pipeline.js';
-import { detectPlatform, extractPropertyId, extractVrboPropertyId } from './url-parser.js';
+import { buildStartRequests } from './input.js';
+import { router } from './routes.js';
+import { detectPlatform, extractPropertyId, extractVrboPropertyId, type Platform } from './url-parser.js';
 
 interface ActorInput {
-    urls?: string[] | string;
-    url?: string;
-    proxyConfiguration?: Record<string, unknown>;
-    maxConcurrency?: number;
-    /** Back-compat alias for Crawlee's maxRequestRetries. */
-    maxRetries?: number;
-    maxRequestRetries?: number;
+    urls: string[];
 }
 
-/** Best-effort id + Platform tag for an error row, matching main.py's error paths. */
-function errorRowMeta(url: string, error: unknown): { id: string; platform: string } {
-    let id = 'unknown';
+/** Best-effort id + Platform tag for an error item. */
+function errorItemMeta(url: string): { id: string; platform: Platform | null } {
+    const platform = detectPlatform(url);
+    if (!platform) return { id: 'unknown', platform: null };
     try {
-        const plat = detectPlatform(url);
-        const extracted = plat === 'vrbo' ? extractVrboPropertyId(url)[0] : extractPropertyId(url)[0];
-        id = extracted ?? 'unknown';
+        const extracted = platform === 'vrbo' ? extractVrboPropertyId(url)[0] : extractPropertyId(url)[0];
+        return { id: extracted ?? 'unknown', platform };
     } catch {
-        // leave id as 'unknown'
+        return { id: 'unknown', platform };
     }
-    // Python tags delisted Hotels.com error rows "hotels.com"; everything else "unknown".
-    const platform = error instanceof HotelsComDelistedError ? 'hotels.com' : 'unknown';
-    return { id, platform };
 }
 
 await Actor.init();
 
-const input = (await Actor.getInput<ActorInput>()) ?? {};
+const { urls } = await Actor.getInputOrThrow<ActorInput>();
 
-let urls: string[] = [];
-if (Array.isArray(input.urls)) urls = input.urls;
-else if (typeof input.urls === 'string') urls = [input.urls];
-if (urls.length === 0 && input.url) urls = [input.url];
+const { requests, unusable, duplicateCount } = buildStartRequests(urls);
 
-if (urls.length === 0) {
-    log.warning('No URLs provided in input');
-    await Actor.exit();
+if (duplicateCount > 0) {
+    log.warning(`Skipping ${duplicateCount} duplicate URLs`);
+}
+if (unusable.length > 0) {
+    log.warning(`Skipping ${unusable.length} of ${urls.length} inputs that are not property URLs`);
+    for (const { raw, reason } of unusable) {
+        await Actor.pushData(formatError(raw, 'unknown', reason, null));
+    }
+}
+if (requests.length === 0) {
+    await Actor.fail(`None of the ${urls.length} input URLs are usable.`);
 }
 
-const proxyConfiguration = await Actor.createProxyConfiguration(
-    input.proxyConfiguration ?? { groups: ['RESIDENTIAL'] },
-);
+// The endpoint rejects datacenter IPs, so residential is not a user choice.
+const proxyConfiguration = await Actor.createProxyConfiguration({
+    groups: ['RESIDENTIAL'],
+    checkAccess: false,
+});
 
-const maxConcurrency = input.maxConcurrency ?? 10;
-const maxRequestRetries = input.maxRequestRetries ?? input.maxRetries ?? 3;
-
-const crawler = new BasicCrawler({
-    maxConcurrency,
-    maxRequestRetries,
-    useSessionPool: true,
-    // Default request handler timeout (60s) is generous for 5 parallel GraphQL
-    // calls plus an optional HTML prefetch; raise it so slow proxies don't abort.
+const crawler = new CheerioCrawler({
+    proxyConfiguration,
+    sessionPoolOptions: { sessionOptions: { maxErrorScore: 1 } },
+    // The Mobile GraphQL API rejects default TLS fingerprints.
+    httpClient: new ImpitHttpClient({ browser: 'okhttp4', ignoreTlsErrors: true }),
+    requestHandler: router,
+    // Five parallel GraphQL calls plus an optional page fetch; the default 60s
+    // aborts slow proxies.
     requestHandlerTimeoutSecs: 180,
-
-    async requestHandler({ request, session }: BasicCrawlingContext) {
-        // One sticky residential IP per URL: bind the upstream to this session.
-        const proxyUrl = await proxyConfiguration?.newUrl(session?.id);
-        const makeClient: ScrapeDeps['makeClient'] = (kind: ClientKind = 'graphql') =>
-            new ImpitHttpClient({ proxyUrl, browser: kind === 'html' ? 'chrome' : 'okhttp4' });
-
-        try {
-            const result = await scrapeProperty(request.url, { makeClient });
-            await Actor.pushData(result); // success rows only
-            log.info(`Success: ${result.name || `Property ${result.id}`}`);
-        } catch (err) {
-            // A soft-block (empty body) → retire the session so the retry rotates IP.
-            if (err instanceof BlockedResponseError) session?.retire();
-            throw err; // let Crawlee retry / route to failedRequestHandler
-        }
-    },
-
-    async failedRequestHandler({ request }: BasicCrawlingContext, error: Error) {
-        // Single source of every error row → preserves the one-row-per-URL invariant.
-        const { id, platform } = errorRowMeta(request.url, error);
-        const message = error?.message ?? String(error);
-        await Actor.pushData(formatError(request.url, id, message, platform));
-        log.error(`Failed: ${request.url} — ${message}`);
+    // Single source of every error item -> preserves the one-item-per-URL invariant.
+    // Crawlee already logs the failure itself, so this only writes the item.
+    async failedRequestHandler({ request }: CheerioCrawlingContext, error: Error) {
+        const { id, platform } = errorItemMeta(request.url);
+        await Actor.pushData(formatError(request.url, id, error.message, platform));
     },
 });
 
-log.info(`Processing ${urls.length} URLs (maxConcurrency=${maxConcurrency}, maxRequestRetries=${maxRequestRetries})`);
 // RequestQueue dedups by URL and persists handled requests across abort/migration,
-// so a resurrected run skips already-scraped Properties for free (ADR-0003).
-await crawler.addRequests(urls.map((url) => ({ url })));
-await crawler.run();
+// so a resurrected run skips already-scraped Properties for free.
+await crawler.run(requests);
 
 await Actor.exit();

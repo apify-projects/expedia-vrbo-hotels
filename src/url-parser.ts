@@ -1,9 +1,9 @@
 /**
- * URL parsing and platform detection for Expedia, Hotels.com, and VRBO.
+ * URL parsing and platform detection for Expedia, Hotels.com, and Vrbo.
  *
- * Faithful port of `src/url_parser.py` (generic extract/detect) plus the
- * VRBO-specific id/suffix extractor from `clients/vrbo_client.py`. Regexes and
- * branch order are preserved exactly so parsing matches the Python byte-for-byte.
+ * The regexes and the order they are tried in are load-bearing: several URL
+ * shapes match more than one pattern, so reordering the branches changes which id
+ * wins.
  */
 import { URLParseError } from './errors.js';
 
@@ -24,7 +24,51 @@ export function numericId(id: string): string {
 }
 
 /**
- * Extract [propertyId, platform] from an Expedia/Hotels.com/VRBO URL.
+ * The Property ID a URL carries in its query string. Expedia Group puts the
+ * canonical id there on links it generates, and it is authoritative: a Vrbo path
+ * id like `/716876` can be an older id the API rejects, while its
+ * `expediaPropertyId` resolves.
+ */
+export function findPropertyIdInQuery(url: string): string | null {
+    let params: URLSearchParams;
+    try {
+        params = new URL(url).searchParams;
+    } catch {
+        return null;
+    }
+    for (const key of ['expediaPropertyId', 'selected']) {
+        const value = params.get(key);
+        if (value && /^\d+$/.test(value)) return value;
+    }
+    return null;
+}
+
+/**
+ * Last resort for a URL whose path names no property. A search page opened on one
+ * card carries that property in the query (`selected`), and it is the property
+ * the user was looking at, so honour it. A search page with nothing selected
+ * names no property at all and is rejected as one.
+ */
+function propertyIdFromQuery(url: string, site: string, platform: Platform): [string, Platform] {
+    const queryId = findPropertyIdInQuery(url);
+    if (queryId) return [queryId, platform];
+
+    let path: string;
+    try {
+        path = new URL(url).pathname;
+    } catch {
+        path = url;
+    }
+    if (/search|results/i.test(path)) {
+        throw new URLParseError(
+            `${site} search pages work only with one property selected, otherwise paste a property page: ${url}`,
+        );
+    }
+    throw new URLParseError(`Could not extract property ID from ${site} URL: ${url}`);
+}
+
+/**
+ * Extract [propertyId, platform] from an Expedia/Hotels.com/Vrbo URL.
  * Throws URLParseError if the URL/domain is unsupported.
  */
 export function extractPropertyId(url: string): [string, Platform] {
@@ -39,7 +83,7 @@ export function extractPropertyId(url: string): [string, Platform] {
         if (m) return [m[1], 'expedia'];
         m = /\.h(\d+)/.exec(url);
         if (m) return [m[1], 'expedia'];
-        throw new URLParseError(`Could not extract property ID from Expedia URL: ${url}`);
+        return propertyIdFromQuery(url, 'Expedia', 'expedia');
     }
 
     if (domain.includes('hotels.com')) {
@@ -47,24 +91,26 @@ export function extractPropertyId(url: string): [string, Platform] {
         if (m) return [m[1], 'hotels.com'];
         m = /\/ho(\d+)/.exec(url);
         if (m) return [m[1], 'hotels.com'];
-        throw new URLParseError(`Could not extract property ID from Hotels.com URL: ${url}`);
+        return propertyIdFromQuery(url, 'Hotels.com', 'hotels.com');
     }
 
     if (
-        domain.includes('vrbo')
-        || domain.includes('homeaway')
-        || domain.includes('abritel')
-        || domain.includes('fewo-direkt')
-        || domain.includes('bookabach')
-        || domain.includes('stayz')
+        domain.includes('vrbo') ||
+        domain.includes('homeaway') ||
+        domain.includes('abritel') ||
+        domain.includes('fewo-direkt') ||
+        domain.includes('bookabach') ||
+        domain.includes('stayz')
     ) {
+        const queryId = findPropertyIdInQuery(url);
+        if (queryId) return [queryId, 'vrbo'];
         let m = /\/rental\/(\d+)/.exec(url);
         if (m) return [m[1], 'vrbo'];
         m = /\/p(\d+)[a-z]*(?:\/|$|\?)/i.exec(url);
         if (m) return [m[1], 'vrbo'];
         m = /\/(\d+)/.exec(url);
         if (m) return [m[1], 'vrbo'];
-        throw new URLParseError(`Could not extract property ID from Vrbo URL: ${url}`);
+        return propertyIdFromQuery(url, 'Vrbo', 'vrbo');
     }
 
     throw new URLParseError(`Unsupported domain: ${domain}`);
@@ -92,13 +138,15 @@ export function detectPlatform(url: string): Platform | null {
 }
 
 /**
- * Extract [numericId, suffix] from a VRBO URL across its many formats.
+ * Extract [numericId, suffix] from a Vrbo URL across its many formats.
  * Returns [null, null] when nothing matches. suffix is one of 'ha'|'vb'|'a'|''.
- * Faithful port of vrbo_client.extract_property_id_from_url.
  */
 export function extractVrboPropertyId(url: string): [string, string] | [null, null] {
     const cleaned = url.trim().replace(/["']+$/, '');
     if (!cleaned.startsWith('http')) return [null, null];
+
+    const queryId = findPropertyIdInQuery(cleaned);
+    if (queryId) return [queryId, ''];
 
     let path: string;
     try {
@@ -107,13 +155,13 @@ export function extractVrboPropertyId(url: string): [string, string] | [null, nu
         return [null, null];
     }
 
-    // Pattern 1: /p{ID}{suffix} anywhere in path
+    // /p{id}{suffix} anywhere in the path
     let m = /\/p(\d+)([a-z]*)(?:\/|$|\?)/i.exec(`/${path}/`);
     if (m) {
         return [m[1], m[2] ? m[2].toLowerCase() : ''];
     }
 
-    // Pattern 2: numeric ID with optional short suffix at a path boundary
+    // A numeric id with an optional short suffix, at a path boundary
     m = /(?:^|\/)(\d+)([a-z]{0,3})(?:\/|$)/i.exec(path);
     if (m) {
         return [m[1], m[2] ? m[2].toLowerCase() : ''];

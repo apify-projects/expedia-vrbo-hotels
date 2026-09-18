@@ -1,22 +1,22 @@
 /**
- * Output types for the property formatter.
+ * The dataset item shapes `formatter.ts` produces.
  *
- * Faithful port of the output dict shapes produced by
- * `src/formatters/vrbo_formatter.py` (`format_property` and `format_error`).
- * Field names, ordering, and null-vs-absent semantics mirror the Python output
- * exactly so a downstream parity test can diff against the Python actor.
+ * Field order is the item's column order, and the null-vs-absent distinction is
+ * deliberate: a null field is one the API did not fill, an absent one is a field
+ * that code path never builds.
  */
+import type { Platform } from './url-parser.js';
 
-/** An image entry produced by `extract_images`. */
+/** An image entry produced by `extractImages`. */
 export interface PropertyImage {
     url: string;
-    /** description may be null (image.description / img_info.description fallback). */
+    /** Null when neither the image nor its gallery entry carries one. */
     description: string | null;
 }
 
 /**
- * A per-unit image produced by `_build_unit_image_map` /
- * `extract_units_from_gallery`. Carries an extra aspectRatio field.
+ * A per-unit image, from `buildUnitImageMap` or `extractUnitsFromGallery`.
+ * Carries an extra aspectRatio field.
  */
 export interface UnitImage {
     url: string;
@@ -24,20 +24,20 @@ export interface UnitImage {
     aspectRatio: string | null;
 }
 
-/** A highlighted amenity from `extract_amenities_summary`. */
+/** A highlighted amenity from `extractAmenitiesSummary`. */
 export interface HighlightedAmenity {
     iconId: string | null;
     text: string;
 }
 
-/** A categorized amenity block from `extract_detailed_amenities`. */
+/** A categorised amenity block from `extractDetailedAmenities`. */
 export interface AmenityCategory {
     title: string;
     items: string[];
 }
 
 /**
- * A policy block from `extract_policies`. `items` is a heterogeneous array:
+ * A policy block from `extractPolicies`. `items` is a heterogeneous array:
  * either plain strings (text items) or nested PolicySubSection objects.
  */
 export interface PolicySubSection {
@@ -49,18 +49,10 @@ export interface PolicySubSection {
 export interface PolicySection {
     /** section header text; may be null when absent. */
     title: string | null;
-    items: Array<string | PolicySubSection>;
+    items: (string | PolicySubSection)[];
 }
 
-/** Host info from `extract_host_data`. */
-export interface HostData {
-    id: string | null;
-    name: string | null;
-    profileImage: string | null;
-    about: string | null;
-}
-
-/** Structured house rules from `extract_house_rules`. */
+/** Structured house rules from `extractHouseRules`. */
 export interface HouseRules {
     checkInTime: string | null;
     checkOutTime: string | null;
@@ -69,54 +61,25 @@ export interface HouseRules {
     eventsAllowed: boolean | null;
 }
 
-/** A property/unit feature ({iconId, text}) from `extract_features`. */
+/** A property/unit feature from `extractFeatures`. */
 export interface Feature {
     iconId: string | null;
     text: string;
 }
 
-/** A structured bed type from `extract_bed_types`. */
+/** A structured bed type from `extractBedTypes`. */
 export interface BedType {
     type: string;
     count: number;
 }
 
-/** A per-unit price object from `extract_unit_price` / property fallback. */
-export interface UnitPrice {
-    amount: number | null;
-    formatted: string | null;
-    total: number | null;
-    totalFormatted: string | null;
-    currency: string | null;
-}
-
-/** One line of the price breakdown in `extract_pricing`. */
-export interface PriceLine {
-    formatted: string;
-    label: string | null;
-}
-
-/** Property-level pricing from `extract_pricing` (offers tripSummary). */
-export interface Pricing {
-    total: number | null;
-    nightly: number | null;
-    currency: string | null;
-    formattedTotal: string | null;
-    roomNightMessage: string | null;
-    /** Only present when there is at least one DisplayPrice line item. */
-    priceBreakdown?: PriceLine[];
-}
-
 /**
- * A unit entry. The Python code builds units from three different code paths
- * with slightly different key sets, so several fields are optional/absent:
+ * A unit entry. Units are built from three code paths with slightly different
+ * key sets, so several fields are optional/absent:
  *
- * - from offers (`extract_units_from_offers`): has `bedTypes`.
- * - from gallery (`extract_units_from_gallery`): NO `bedTypes` key, price=null.
+ * - from offers (`extractUnitsFromOffers`): has `bedTypes`.
+ * - from gallery (`extractUnitsFromGallery`): NO `bedTypes` key.
  * - single-unit fallback: NO top-level `description` key, but has `bedTypes`.
- *
- * `price` can be a per-unit UnitPrice, the property-level Pricing object (used
- * as the single-unit fallback's price), or null.
  */
 export interface PropertyUnit {
     id: string | null;
@@ -126,18 +89,16 @@ export interface PropertyUnit {
     features: Feature[];
     amenities: AmenityCategory[];
     images: UnitImage[];
-    price: UnitPrice | Pricing | null;
     /** Present in offers/fallback units; ABSENT in gallery-derived units. null when empty. */
     bedTypes?: BedType[] | null;
 }
 
-/** The Terminal success row returned by `format_property`. */
+/** The success item returned by `formatProperty`. */
 export interface PropertyResult {
-    source: string;
+    platform: Platform;
     url: string;
     id: string;
     name: string;
-    tagline: string | null;
     description: string | null;
     thumbnail: string | null;
     latitude: number | null;
@@ -147,7 +108,6 @@ export interface PropertyResult {
     region: string | null;
     street: string | null;
     rating: number | null;
-    ratingText: string | null;
     reviewCount: number | null;
     guestCount: number | null;
     bedroomCount: number | null;
@@ -158,15 +118,14 @@ export interface PropertyResult {
     amenities: AmenityCategory[];
     policies: PolicySection[];
     importantInfo: string[];
-    host: HostData;
     houseRules: HouseRules;
     units: PropertyUnit[];
     scrapedAt: string;
 }
 
-/** The Terminal error row returned by `format_error`. */
-export interface ErrorRow {
-    source: string;
+/** The error item returned by `formatError`. */
+export interface ErrorItem {
+    platform: Platform | null;
     url: string;
     id: string;
     error: string;

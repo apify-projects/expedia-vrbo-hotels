@@ -1,17 +1,14 @@
 /**
- * GraphQL client for the Expedia Group Mobile API, covering both the VRBO and
- * Expedia/Hotels.com app identities. Faithful port of `clients/vrbo_client.py`
- * and `clients/expedia_client.py` (which were near-identical apart from the app
- * identity headers/context). The two are unified here behind a `Profile`.
- *
- * The five fetchers (summary, content, gallery, offers, pageLayout) are the
- * exact set the per-URL pipeline runs in parallel.
+ * GraphQL client for the Expedia Group Mobile API. The Vrbo and Expedia app
+ * identities differ only in headers and context, so a `Profile` carries the
+ * difference and everything else is shared.
  */
 import { randomUUID } from 'node:crypto';
 
+import type { CheerioCrawlingContext } from 'crawlee';
+
 import { getSignedHeaders } from './auth.js';
-import { BlockedResponseError } from './errors.js';
-import type { HttpClient } from './http/http-client.js';
+import { BlockedResponseError, PropertyNotFoundError } from './errors.js';
 import {
     PRODUCT_GALLERY_QUERY,
     PROPERTY_CONTENT_QUERY,
@@ -22,9 +19,18 @@ import {
 import { validatePropertyResponse } from './response-validation.js';
 import type { ExpediaSiteConfig, VrboSiteConfig } from './site-configs.js';
 
-interface AbacusOverride { bucket: number; id: string }
+/**
+ * Crawlee's `sendRequest` carries the crawling context's proxy URL and session,
+ * so every call a handler makes shares that request's sticky residential IP.
+ */
+export type SendRequest = CheerioCrawlingContext['sendRequest'];
 
-/** App-identity constants that differ between the VRBO app and the Expedia app. */
+interface AbacusOverride {
+    bucket: number;
+    id: string;
+}
+
+/** App-identity constants that differ between the Vrbo app and the Expedia app. */
 export interface Profile {
     userAgent: string;
     clientInfoHeader: string;
@@ -32,8 +38,6 @@ export interface Profile {
     appIdentifier: string;
     contextClientInfo: { name: string; version: string };
     abacusOverrides: AbacusOverride[];
-    /** VRBO validates the summary response (reject wrong/blank); Expedia does not. */
-    validateSummary: boolean;
 }
 
 export function makeVrboProfile(): Profile {
@@ -49,12 +53,11 @@ export function makeVrboProfile(): Profile {
             { bucket: 1, id: '31491' },
             { bucket: 1, id: '31619' },
         ],
-        validateSummary: true,
     };
 }
 
 export function makeExpediaProfile(site: ExpediaSiteConfig): Profile {
-    const {appVersion} = site;
+    const { appVersion } = site;
     return {
         userAgent: `Expedia/${appVersion} Dalvik/2.1.0 (Linux; U; Android 13; Generic Android-x86_64 Build/TQ3A.230901.001.C1)`,
         clientInfoHeader: `${site.appName},${appVersion},external`,
@@ -62,7 +65,6 @@ export function makeExpediaProfile(site: ExpediaSiteConfig): Profile {
         appIdentifier: site.appName.replace('android.', ''),
         contextClientInfo: { name: site.appName, version: appVersion },
         abacusOverrides: [],
-        validateSummary: false,
     };
 }
 
@@ -82,11 +84,17 @@ function fmtUtc(d: Date): string {
     return `${y}-${m}-${day}`;
 }
 
-/** Default check-in (tomorrow) and check-out (2 nights later), UTC. */
+const LEAD_DAYS = 30;
+const NIGHTS = 3;
+
+/**
+ * The offers query answers with an error, not data, for dates close to today,
+ * so the window sits a month out.
+ */
 function getDefaultDates(): [string, string] {
-    const tomorrow = new Date(Date.now() + 86_400_000);
-    const checkout = new Date(tomorrow.getTime() + 2 * 86_400_000);
-    return [fmtUtc(tomorrow), fmtUtc(checkout)];
+    const checkIn = new Date(Date.now() + LEAD_DAYS * 86_400_000);
+    const checkOut = new Date(checkIn.getTime() + NIGHTS * 86_400_000);
+    return [fmtUtc(checkIn), fmtUtc(checkOut)];
 }
 
 const ACCEPT = 'multipart/mixed;deferSpec=20220824, application/graphql-response+json, application/json';
@@ -104,7 +112,7 @@ const baseSecondary = () => ({
 export interface PropertyClientOptions {
     profile: Profile;
     site: VrboSiteConfig | ExpediaSiteConfig;
-    http: HttpClient;
+    sendRequest: SendRequest;
     deviceId?: string;
 }
 
@@ -113,7 +121,7 @@ export class PropertyClient {
 
     private readonly site: VrboSiteConfig | ExpediaSiteConfig;
 
-    private readonly http: HttpClient;
+    private readonly sendRequest: SendRequest;
 
     private readonly deviceId: string;
 
@@ -122,7 +130,7 @@ export class PropertyClient {
     constructor(opts: PropertyClientOptions) {
         this.profile = opts.profile;
         this.site = opts.site;
-        this.http = opts.http;
+        this.sendRequest = opts.sendRequest;
         this.deviceId = opts.deviceId ?? randomUUID();
         this.endpoint = `${opts.site.baseUrl}/graphql`;
     }
@@ -138,9 +146,9 @@ export class PropertyClient {
             'client-info': this.profile.clientInfoHeader,
             'device-user-agent-id': this.deviceId,
             'x-eb-client':
-                `PLATFORM:ANDROID;OS_VERSION:13;MANUFACTURER:unknown;MODEL:Generic Android-x86_64;`
-                + `MODEL_NAME:Generic Android-x86_64;UPGRADE:false;APP_VERSION:${this.profile.appVersion};`
-                + `LOCALE:${locale};APP_IDENTIFIER:${this.profile.appIdentifier};`,
+                `PLATFORM:ANDROID;OS_VERSION:13;MANUFACTURER:unknown;MODEL:Generic Android-x86_64;` +
+                `MODEL_NAME:Generic Android-x86_64;UPGRADE:false;APP_VERSION:${this.profile.appVersion};` +
+                `LOCALE:${locale};APP_IDENTIFIER:${this.profile.appIdentifier};`,
             'x-apollo-operation-name': operationName,
             'x-apollo-operation-id': operationId,
             'x-mobvisid': randomUUID(),
@@ -164,37 +172,39 @@ export class PropertyClient {
         };
     }
 
-    private async postJson(payload: unknown, headers: Record<string, string>): Promise<any> {
-        const resp = await this.http.fetch(this.endpoint, {
+    private async postJson(payload: unknown, headers: Record<string, string>, propertyId: string): Promise<any> {
+        const response = await this.sendRequest({
+            url: this.endpoint,
             method: 'POST',
             headers,
             body: JSON.stringify(payload),
         });
-        const body = await resp.text();
-        if (resp.status === 403 || resp.status === 429) {
-            // Hard block codes → BlockedResponseError so the caller retires the
-            // session and the retry lands a fresh IP (ADR-0003, spike/RESULTS.md).
-            throw new BlockedResponseError(`HTTP ${resp.status} block from ${this.endpoint}`);
+        const { body, statusCode } = response;
+        if (statusCode === 403 || statusCode === 429) {
+            // Hard block codes -> BlockedResponseError so the caller retires the
+            // session and the retry lands a fresh IP.
+            throw new BlockedResponseError(`HTTP ${statusCode} block from ${this.endpoint}`);
         }
-        if (resp.status >= 400) {
-            throw new Error(`HTTP ${resp.status}: ${body.slice(0, 500)}`);
+        if (statusCode >= 400) {
+            throw new Error(`HTTP ${statusCode}: ${body.slice(0, 500)}`);
         }
         const trimmed = (body ?? '').trim();
         if (!trimmed) {
-            throw new BlockedResponseError(
-                `Empty body from ${this.endpoint} (HTTP ${resp.status}) — soft-block`,
-            );
+            throw new BlockedResponseError(`Empty body from ${this.endpoint} (HTTP ${statusCode}) - soft-block`);
         }
         let data: any;
         try {
             data = JSON.parse(trimmed);
         } catch {
             throw new BlockedResponseError(
-                `Non-JSON body from ${this.endpoint} (HTTP ${resp.status}, ${body.length} bytes): ${trimmed.slice(0, 300)}`,
+                `Non-JSON body from ${this.endpoint} (HTTP ${statusCode}, ${body.length} bytes): ${trimmed.slice(0, 300)}`,
             );
         }
         if (Array.isArray(data.errors) && data.errors.length) {
-            const msgs = data.errors.map((e: any) => e?.message ?? JSON.stringify(e)).join('; ');
+            const msgs = data.errors.map((error: any) => error?.message ?? JSON.stringify(error)).join('; ');
+            if (/Failed to retrieve (?:Property|Hotel Summary)/.test(msgs)) {
+                throw new PropertyNotFoundError(`Property ${propertyId} not found`);
+            }
             throw new Error(`GraphQL errors: ${msgs}`);
         }
         return data;
@@ -214,10 +224,11 @@ export class PropertyClient {
             },
             query: PROPERTY_SUMMARY_QUERY,
         };
-        const data = await this.postJson(payload, this.headers('PropertySummary', 'PropertySummary'));
-        if (this.profile.validateSummary) {
-            const { valid, reason } = validatePropertyResponse(data, formatted);
-            if (!valid) throw new Error(`Property validation failed for ${formatted}: ${reason}`);
+        const data = await this.postJson(payload, this.headers('PropertySummary', 'PropertySummary'), formatted);
+        const result = validatePropertyResponse(data, formatted);
+        if (!result.valid) {
+            if (result.kind === 'not-found') throw new PropertyNotFoundError(`Property ${formatted} not found`);
+            throw new Error(`Property validation failed for ${formatted}: ${result.reason}`);
         }
         return data;
     }
@@ -237,7 +248,7 @@ export class PropertyClient {
             },
             query: PROPERTY_CONTENT_QUERY,
         };
-        return this.postJson(payload, this.headers('PropertyContent', 'PropertyContent'));
+        return this.postJson(payload, this.headers('PropertyContent', 'PropertyContent'), formatted);
     }
 
     async fetchProductGallery(propertyId: string): Promise<any> {
@@ -250,7 +261,7 @@ export class PropertyClient {
             },
             query: PRODUCT_GALLERY_QUERY,
         };
-        return this.postJson(payload, this.headers('ProductGallery', 'ProductGallery'));
+        return this.postJson(payload, this.headers('ProductGallery', 'ProductGallery'), formatted);
     }
 
     async fetchPropertyOffers(propertyId: string): Promise<any> {
@@ -272,7 +283,7 @@ export class PropertyClient {
             },
             query: PROPERTY_OFFERS_WITH_UNITS_QUERY,
         };
-        return this.postJson(payload, this.headers('PropertyOffers', 'PropertyOffers'));
+        return this.postJson(payload, this.headers('PropertyOffers', 'PropertyOffers'), formatted);
     }
 
     async fetchPageLayout(propertyId: string): Promise<any> {
@@ -285,7 +296,10 @@ export class PropertyClient {
                     productLine: 'LODGING',
                     travelSearchCriteria: {
                         property: {
-                            primary: { destination: { mapBounds: [], regionName: '' }, rooms: [{ adults: 2, children: [] }] },
+                            primary: {
+                                destination: { mapBounds: [], regionName: '' },
+                                rooms: [{ adults: 2, children: [] }],
+                            },
                             secondary: baseSecondary(),
                         },
                     },
@@ -295,6 +309,6 @@ export class PropertyClient {
             },
             query: TEMPLATE_PAGE_LAYOUT_QUERY,
         };
-        return this.postJson(payload, this.headers('TemplatePageLayout', 'TemplatePageLayout'));
+        return this.postJson(payload, this.headers('TemplatePageLayout', 'TemplatePageLayout'), formatted);
     }
 }

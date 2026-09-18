@@ -1,70 +1,123 @@
 /**
- * Error-path coverage (PRD testing decision: "Error-path variants assert the
- * single error row"; stories #6/#7/#9/#12). These drive the real pipeline /
- * client through the faked-impit seam and assert the THROW (so the
- * requestHandler pushes no success row, and the single error row comes from the
- * failedRequestHandler).
+ * Error paths: every one asserts a THROW, so the route pushes no success item and
+ * the single error item comes from the failedRequestHandler.
  */
-import { describe, expect,it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import { BlockedResponseError, HotelsComDelistedError, URLParseError } from '../src/errors.js';
+import { BlockedResponseError, PropertyNotFoundError } from '../src/errors.js';
 import { formatError } from '../src/formatter.js';
-import { scrapeProperty } from '../src/pipeline.js';
 import { makeExpediaProfile, PropertyClient } from '../src/property-client.js';
+import { assertPageHasContent, scrapeProperty } from '../src/routes.js';
 import { EXPEDIA_SITE_CONFIGS } from '../src/site-configs.js';
-import { FakeHttp, type Route } from './fake-http.js';
+import { fakeSendRequest, type Route } from './fake-send-request.js';
+import { loadPage } from './load-page.js';
 
-// GraphQL POSTs get a summary-shaped body with the given name; GETs (legacy
-// prefetch) get inert HTML.
-const summaryRoute = (name: string | null): Route => (_url, init) => (init.method === 'POST'
-    ? { status: 200, text: JSON.stringify({ data: { propertyInfo: { summary: { id: '1', name } } } }) }
-    : { status: 200, text: '<html></html>' });
-
-describe('error paths → pipeline throws (no success row)', () => {
-    it('unsupported platform → URLParseError', async () => {
-        const deps = { makeClient: () => new FakeHttp(() => ({ status: 200, text: '' })) };
-        await expect(scrapeProperty('https://www.booking.com/hotel/x.html', deps)).rejects.toBeInstanceOf(URLParseError);
+const summaryRoute =
+    (name: string | null): Route =>
+    () => ({
+        body: JSON.stringify({ data: { propertyInfo: { summary: { id: '1', name } } } }),
     });
 
-    it('VRBO blank-name response → validation throws', async () => {
-        const deps = { makeClient: () => new FakeHttp(summaryRoute('')) };
-        await expect(scrapeProperty('https://www.vrbo.com/117898910', deps)).rejects.toThrow(/validation failed/i);
-    });
-
-    it('delisted Hotels.com → HotelsComDelistedError (non-retryable)', async () => {
-        const deps = { makeClient: () => new FakeHttp(() => ({ status: 200, text: '<html>home</html>', url: 'https://www.hotels.com/' })) };
-        await expect(scrapeProperty('https://www.hotels.com/ho136900/x/', deps)).rejects.toBeInstanceOf(HotelsComDelistedError);
-    });
-});
-
-describe('block detection → BlockedResponseError (retire session, rotate IP — story #12)', () => {
-    const client = (http: FakeHttp) => new PropertyClient({
+const client = (route: Route) =>
+    new PropertyClient({
         profile: makeExpediaProfile(EXPEDIA_SITE_CONFIGS['expedia.com']),
         site: EXPEDIA_SITE_CONFIGS['expedia.com'],
-        http,
+        sendRequest: fakeSendRequest(route).send,
     });
 
-    it('HTTP 429 → BlockedResponseError', async () => {
-        await expect(client(new FakeHttp(() => ({ status: 429, text: '' }))).fetchPropertySummary('525006'))
-            .rejects.toBeInstanceOf(BlockedResponseError);
-    });
-
-    it('HTTP 403 → BlockedResponseError', async () => {
-        await expect(client(new FakeHttp(() => ({ status: 403, text: '' }))).fetchPropertySummary('525006'))
-            .rejects.toBeInstanceOf(BlockedResponseError);
-    });
-
-    it('empty body → BlockedResponseError', async () => {
-        await expect(client(new FakeHttp(() => ({ status: 200, text: '' }))).fetchPropertySummary('525006'))
-            .rejects.toBeInstanceOf(BlockedResponseError);
+describe('a blank-name response is a dead id on every platform', () => {
+    it.each(['vrbo', 'expedia', 'hotels.com'] as const)('%s -> PropertyNotFoundError', async (platform) => {
+        await expect(
+            scrapeProperty({
+                url: 'https://www.example.com/x',
+                platform,
+                propertyId: '9999',
+                sendRequest: fakeSendRequest(summaryRoute('')).send,
+            }),
+        ).rejects.toBeInstanceOf(PropertyNotFoundError);
     });
 });
 
-describe('formatError → one structured error row (story #7)', () => {
-    it('carries source, url, id, error + a scrapedAt timestamp', () => {
-        const row = formatError('https://www.vrbo.com/x', '123', 'boom', 'unknown');
-        expect(row).toMatchObject({ source: 'unknown', url: 'https://www.vrbo.com/x', id: '123', error: 'boom' });
-        expect(typeof row.scrapedAt).toBe('string');
-        expect(Object.keys(row).sort()).toEqual(['error', 'id', 'scrapedAt', 'source', 'url']);
+describe('dead property ids are not retried', () => {
+    const gqlErrors = (...messages: string[]) => JSON.stringify({ errors: messages.map((message) => ({ message })) });
+
+    it('"Failed to retrieve Property" -> PropertyNotFoundError', async () => {
+        const route: Route = () => ({
+            body: gqlErrors(
+                'Exception while fetching data (/propertyInfo/summary) : Failed to retrieve Property. Property id=9999',
+            ),
+        });
+        await expect(client(route).fetchPropertySummary('9999')).rejects.toBeInstanceOf(PropertyNotFoundError);
+    });
+
+    it('"Failed to retrieve Hotel Summary" -> PropertyNotFoundError', async () => {
+        const route: Route = () => ({
+            body: gqlErrors(
+                'Exception while fetching data (/propertyInfo/propertyDetails) : Failed to retrieve Hotel Summary. Hotel = 9999',
+            ),
+        });
+        await expect(client(route).fetchPropertySummary('9999')).rejects.toBeInstanceOf(PropertyNotFoundError);
+    });
+
+    it('an unrelated GraphQL error stays retryable', async () => {
+        const route: Route = () => ({
+            body: gqlErrors('Upstream exception with statusCode=3 occurred while calling gRPC API'),
+        });
+        const promise = client(route).fetchProductGallery('525006');
+        await expect(promise).rejects.toThrow(/GraphQL errors/);
+        await expect(promise).rejects.not.toBeInstanceOf(PropertyNotFoundError);
+    });
+
+    it('a wrong-property response stays retryable', async () => {
+        const route: Route = () => ({
+            body: JSON.stringify({ data: { propertyInfo: { summary: { id: '111', name: 'Someone Else' } } } }),
+        });
+        const promise = client(route).fetchPropertySummary('525006');
+        await expect(promise).rejects.toThrow(/Wrong property/);
+        await expect(promise).rejects.not.toBeInstanceOf(PropertyNotFoundError);
+    });
+});
+
+describe('block detection -> BlockedResponseError, so the session rotates', () => {
+    it.each([429, 403])('HTTP %i', async (statusCode) => {
+        await expect(client(() => ({ statusCode, body: '' })).fetchPropertySummary('525006')).rejects.toBeInstanceOf(
+            BlockedResponseError,
+        );
+    });
+
+    it('empty GraphQL body', async () => {
+        await expect(client(() => ({ body: '' })).fetchPropertySummary('525006')).rejects.toBeInstanceOf(
+            BlockedResponseError,
+        );
+    });
+
+    it('empty page from a navigated request', () => {
+        const url = 'https://www.hotels.com/ho118568/';
+        expect(() => assertPageHasContent(loadPage(''), url)).toThrow(BlockedResponseError);
+        expect(() => assertPageHasContent(loadPage('   '), url)).toThrow(BlockedResponseError);
+        // A bare skeleton is the other shape a soft-block arrives in.
+        expect(() => assertPageHasContent(loadPage('<html><head></head><body></body></html>'), url)).toThrow(
+            BlockedResponseError,
+        );
+        expect(() => assertPageHasContent(loadPage('<html>ok</html>'), url)).not.toThrow();
+    });
+});
+
+describe('formatError -> one structured error item', () => {
+    it('reports the platform as its machine value', () => {
+        expect(formatError('https://www.vrbo.com/x', '123', 'boom', 'vrbo').platform).toBe('vrbo');
+        expect(formatError('https://www.expedia.co.uk/x', '1', 'boom', 'expedia').platform).toBe('expedia');
+        expect(formatError('https://www.hotels.com/x', '1', 'boom', 'hotels.com').platform).toBe('hotels.com');
+    });
+
+    it('uses null, not a placeholder, when the platform is undetectable', () => {
+        expect(formatError('https://www.booking.com/x', 'unknown', 'boom', null).platform).toBeNull();
+    });
+
+    it('carries platform, url, id, error + a scrapedAt timestamp', () => {
+        const item = formatError('https://www.vrbo.com/x', '123', 'boom', 'vrbo');
+        expect(item).toMatchObject({ platform: 'vrbo', url: 'https://www.vrbo.com/x', id: '123', error: 'boom' });
+        expect(typeof item.scrapedAt).toBe('string');
+        expect(Object.keys(item).sort()).toEqual(['error', 'id', 'platform', 'scrapedAt', 'url']);
     });
 });

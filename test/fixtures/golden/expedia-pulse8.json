@@ -8159,12 +8159,11 @@
       }
     }
   },
-  "expectedRow": {
-    "source": "Expedia",
+  "expectedItem": {
+    "platform": "expedia",
     "url": "https://www.expedia.com/Prague-Hotels-Pentahotel-Prague.h525006.Hotel-Information",
     "id": "525006",
     "name": "Hotel PULSE8",
-    "tagline": null,
     "description": "Upscale boutique hotel near Prague Market Located close to National Memorial at Vitkov and Army Museum Zizkov, Hotel PULSE8 provides a library, dry cleaning/laundry services, and a fireplace in the lobby. The on-site international cuisine restaurant, Pentalounge, offers breakfast, lunch, dinner, light fare, and kids' meals. Free in-room WiFi is available to all guests, along with a bar and a gym. Additional perks include: Limo/town car service, buffet breakfast (surcharge), and self parking (surcharge) An electric car charging station, express check-out, and a foosball table Secured bicycle storage, a music library, and local meal delivery service Guest reviews say great things about the helpful staff Room features All 227 rooms boast comforts such as laptop-friendly workspaces and air conditioning, in addition to thoughtful touches like free WiFi and safes. More conveniences in all rooms include: LED light bulbs and eco-friendly cleaning products Bathrooms with heated floors and rainf",
     "thumbnail": "https://images.trvl-media.com/lodging/1000000/530000/525100/525006/0b562cce.jpg?impolicy=resizecrop&rw=1200&ra=fit",
     "latitude": 50.09477,
@@ -8174,7 +8173,6 @@
     "region": "Prague",
     "street": "Sokolovska 112, Prague, 186 00",
     "rating": 9.0,
-    "ratingText": "18.0/10 Exceptional",
     "reviewCount": 867,
     "guestCount": null,
     "bedroomCount": null,
@@ -9053,7 +9051,7 @@
               "This property offers transfers from the airport and train station (surcharges may apply); to arrange pick-up, guests must contact the property 24 hours prior to arrival, using the contact information on the booking confirmation",
               "Front desk staff will greet guests on arrival at the property",
               "Information provided by the property may be translated using automated translation tools",
-              "It is the property\u2019s policy that children under 18 years of age cannot be accommodated at the property without an accompanying parent or legal guardian. Guests are required to provide proof of the parental or legal guardian relationship and authorization upon arrival."
+              "It is the property’s policy that children under 18 years of age cannot be accommodated at the property without an accompanying parent or legal guardian. Guests are required to provide proof of the parental or legal guardian relationship and authorization upon arrival."
             ]
           },
           {
@@ -9114,12 +9112,6 @@
       "Children under 17 years old are not allowed in the fitness facility without adult supervision",
       "This property welcomes guests of all sexual orientations and gender identities (LGBTQ+ friendly)"
     ],
-    "host": {
-      "id": null,
-      "name": null,
-      "profileImage": null,
-      "about": null
-    },
     "houseRules": {
       "checkInTime": null,
       "checkOutTime": null,
@@ -9223,7 +9215,6 @@
           }
         ],
         "images": [],
-        "price": null,
         "bedTypes": [
           {
             "type": "King",
@@ -9356,7 +9347,6 @@
             "aspectRatio": null
           }
         ],
-        "price": null,
         "bedTypes": [
           {
             "type": "King",
@@ -9494,7 +9484,6 @@
             "aspectRatio": null
           }
         ],
-        "price": null,
         "bedTypes": [
           {
             "type": "King",
@@ -9623,7 +9612,6 @@
             "aspectRatio": null
           }
         ],
-        "price": null,
         "bedTypes": [
           {
             "type": "King",
@@ -9738,7 +9726,6 @@
             "aspectRatio": null
           }
         ],
-        "price": null,
         "bedTypes": null
       }
     ],

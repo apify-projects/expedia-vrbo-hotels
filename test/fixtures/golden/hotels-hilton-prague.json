@@ -11057,12 +11057,11 @@
       }
     }
   },
-  "expectedRow": {
-    "source": "Hotels.com",
+  "expectedItem": {
+    "platform": "hotels.com",
     "url": "https://www.hotels.com/ho136900/hilton-prague-old-town-prague-czech-republic/",
     "id": "21856",
     "name": "Hilton Prague Old Town",
-    "tagline": null,
     "description": "Luxury hotel near Old Town Square Close to Prague Astronomical Clock and Wenceslas Square, Hilton Prague Old Town provides a free grocery shopping service, a free daily manager's reception, and dry cleaning/laundry services. Treat yourself to a massage at the onsite spa. The on-site restaurant, Zinc, offers breakfast, brunch, lunch, and dinner. Stay connected with in-room WiFi (surcharge), and guests can find other amenities such as a fireplace in the lobby and a bar. Other perks at this hotel include: An indoor pool Full breakfast (surcharge), self parking (surcharge), and a banquet hall Bicycle tour information, smoke-free premises, and luggage storage Free newspapers, meeting rooms, and multilingual staff Guest reviews give top marks for the helpful staff and location Room features All 303 rooms feature comforts such as laptop-compatible safes and laptop-friendly workspaces, in addition to perks like air conditioning and safes. Guest reviews highly rate the clean rooms at the proper",
     "thumbnail": "https://images.trvl-media.com/lodging/1000000/30000/21900/21856/933a5b9d.jpg?impolicy=resizecrop&rw=1200&ra=fit",
     "latitude": 50.088621,
@@ -11072,7 +11071,6 @@
     "region": "Prague",
     "street": "V Celnici 7, Prague, 110 00",
     "rating": 8.8,
-    "ratingText": "17.6/10 Exceptional",
     "reviewCount": 1001,
     "guestCount": null,
     "bedroomCount": null,
@@ -12056,12 +12054,6 @@
       "Please note that cultural norms and guest policies may differ by country and by property; the policies listed are provided by the property",
       "This property welcomes guests of all sexual orientations and gender identities (LGBTQ+ friendly)"
     ],
-    "host": {
-      "id": null,
-      "name": null,
-      "profileImage": null,
-      "about": null
-    },
     "houseRules": {
       "checkInTime": null,
       "checkOutTime": null,
@@ -12155,7 +12147,6 @@
             "aspectRatio": null
           }
         ],
-        "price": null,
         "bedTypes": [
           {
             "type": "King",
@@ -12237,7 +12228,6 @@
           }
         ],
         "images": [],
-        "price": null,
         "bedTypes": [
           {
             "type": "King",
@@ -12350,7 +12340,6 @@
             "aspectRatio": null
           }
         ],
-        "price": null,
         "bedTypes": [
           {
             "type": "King",
@@ -12411,7 +12400,6 @@
           }
         ],
         "images": [],
-        "price": null,
         "bedTypes": null
       },
       {
@@ -12480,7 +12468,6 @@
           }
         ],
         "images": [],
-        "price": null,
         "bedTypes": [
           {
             "type": "King",
@@ -12545,7 +12532,6 @@
           }
         ],
         "images": [],
-        "price": null,
         "bedTypes": null
       },
       {
@@ -12622,7 +12608,6 @@
           }
         ],
         "images": [],
-        "price": null,
         "bedTypes": [
           {
             "type": "Queen",
@@ -12704,7 +12689,6 @@
           }
         ],
         "images": [],
-        "price": null,
         "bedTypes": [
           {
             "type": "King",
@@ -12808,7 +12792,6 @@
             "aspectRatio": null
           }
         ],
-        "price": null,
         "bedTypes": [
           {
             "type": "King",
@@ -12912,7 +12895,6 @@
             "aspectRatio": null
           }
         ],
-        "price": null,
         "bedTypes": [
           {
             "type": "King",
@@ -13046,7 +13028,6 @@
             "aspectRatio": null
           }
         ],
-        "price": null,
         "bedTypes": [
           {
             "type": "King",
@@ -13128,7 +13109,6 @@
           }
         ],
         "images": [],
-        "price": null,
         "bedTypes": [
           {
             "type": "King",
@@ -13206,7 +13186,6 @@
           }
         ],
         "images": [],
-        "price": null,
         "bedTypes": [
           {
             "type": "Queen",
@@ -13284,7 +13263,6 @@
           }
         ],
         "images": [],
-        "price": null,
         "bedTypes": [
           {
             "type": "Twin",
@@ -13362,7 +13340,6 @@
           }
         ],
         "images": [],
-        "price": null,
         "bedTypes": [
           {
             "type": "Twin",
@@ -13440,7 +13417,6 @@
           }
         ],
         "images": [],
-        "price": null,
         "bedTypes": [
           {
             "type": "Twin",
