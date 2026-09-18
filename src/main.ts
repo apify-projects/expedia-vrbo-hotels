@@ -56,13 +56,13 @@ const proxyConfiguration = await Actor.createProxyConfiguration({
 
 const crawler = new CheerioCrawler({
     proxyConfiguration,
+    sessionPoolOptions: { sessionOptions: { maxErrorScore: 1 } },
     // The Mobile GraphQL API rejects default TLS fingerprints.
     httpClient: new ImpitHttpClient({ browser: 'okhttp4', ignoreTlsErrors: true }),
     requestHandler: router,
     // Five parallel GraphQL calls plus an optional page fetch; the default 60s
     // aborts slow proxies.
     requestHandlerTimeoutSecs: 180,
-
     // Single source of every error item -> preserves the one-item-per-URL invariant.
     // Crawlee already logs the failure itself, so this only writes the item.
     async failedRequestHandler({ request }: CheerioCrawlingContext, error: Error) {

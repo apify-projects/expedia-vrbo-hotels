@@ -42,9 +42,8 @@ export class PropertyNotFoundError extends NonRetryableError {
 }
 
 /**
- * Raised when the endpoint soft-blocks with an empty / non-JSON body. RETRYABLE:
- * the crawler retires the session so the retry lands a fresh residential IP.
- * Plain Error -> Crawlee retries it (unlike NonRetryableError).
+ * Raised when the endpoint soft-blocks with an empty / non-JSON body. Retryable,
+ * and the retry gets a fresh session
  */
 export class BlockedResponseError extends Error {
     constructor(message: string) {
