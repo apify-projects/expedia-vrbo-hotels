@@ -1,0 +1,16 @@
+{
+    "title": "Expedia Scraper - Vrbo & Hotels.com Property Data Input",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+        "urls": {
+            "title": "Property URLs",
+            "type": "array",
+            "description": "Property URLs from Expedia, Vrbo or Hotels.com. The platform is detected per URL.",
+            "editor": "stringList",
+            "prefill": ["https://www.expedia.com/Prague-Hotels-Pentahotel-Prague.h525006.Hotel-Information"],
+            "minItems": 1
+        }
+    },
+    "required": ["urls"]
+}
