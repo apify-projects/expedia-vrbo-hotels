@@ -15,3 +15,5 @@ tsconfig.tsbuildinfo
 
 # Added by Apify CLI
 .venv
+
+.proxy-mcp
