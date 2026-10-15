@@ -1,0 +1,13 @@
+.prettierignore
+dist
+node_modules
+storage
+package-lock.json
+
+# Generated: golden fixtures, and GraphQL strings that must stay byte-identical
+# to what the app sends.
+test/fixtures/golden
+src/queries.ts
+
+# Prose is hand-wrapped; Prettier reflows it and pads table cells.
+*.md
